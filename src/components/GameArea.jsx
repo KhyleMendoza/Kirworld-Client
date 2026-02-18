@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import Player from './Player';
 import DPad from './DPad';
+import ZoomControls from './ZoomControls';
+import ChatBox from './ChatBox';
 import '../styles/GameArea.css';
 
 const SEND_RATE_MS = 80;
@@ -9,14 +11,19 @@ const INTERPOLATION_SPEED = 0.2;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 32;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.2;
 
 export default function GameArea({ playerName }) {
   const socketRef = useRef(null);
   const myIdRef = useRef(null);
   const [players, setPlayers] = useState([]);
+  const [zoom, setZoom] = useState(1);
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
   const sendIntervalRef = useRef(null);
   const [displayPlayers, setDisplayPlayers] = useState([]);
+  const [messages, setMessages] = useState([]);
 
   // Connect and join (use VITE_WS_URL in production)
   const serverUrl = import.meta.env.VITE_WS_URL || window.location.origin;
@@ -30,6 +37,10 @@ export default function GameArea({ playerName }) {
 
     socket.on('players', (list) => {
       setPlayers(list);
+    });
+
+    socket.on('chat', (msg) => {
+      setMessages((prev) => [...prev.slice(-99), msg]);
     });
 
     socket.emit('join', playerName);
@@ -55,10 +66,15 @@ export default function GameArea({ playerName }) {
     };
   }, []);
 
-  // Keyboard: WASD + Arrow keys
+  // Keyboard: WASD + Arrow keys (ignored when chat input is focused)
   useEffect(() => {
+    const isInputFocused = () => {
+      const el = document.activeElement;
+      return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    };
     const k = keysRef.current;
     const down = (e) => {
+      if (isInputFocused()) return;
       const key = e.key?.toLowerCase();
       if (key === 'w' || key === 'arrowup') k.w = true;
       if (key === 's' || key === 'arrowdown') k.s = true;
@@ -67,6 +83,7 @@ export default function GameArea({ playerName }) {
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) e.preventDefault();
     };
     const up = (e) => {
+      if (isInputFocused()) return;
       const key = e.key?.toLowerCase();
       if (key === 'w' || key === 'arrowup') k.w = false;
       if (key === 's' || key === 'arrowdown') k.s = false;
@@ -110,11 +127,29 @@ export default function GameArea({ playerName }) {
     keysRef.current.d = dx === 1;
   }, []);
 
+  const handleZoom = useCallback((delta) => {
+    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
+  }, []);
+
+  // Desktop: mouse wheel zoom (skip when over chat so chat list can scroll like on mobile)
+  useEffect(() => {
+    const onWheel = (e) => {
+      const inChat = e.target.closest?.('.chatbox, .chatbox-list');
+      if (inChat) return;
+      e.preventDefault();
+      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - (e.deltaY > 0 ? ZOOM_STEP : -ZOOM_STEP))));
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, []);
+
   const myId = myIdRef.current;
   const displayList = displayPlayers.length ? displayPlayers : players.map((p) => ({ ...p, displayX: p.x, displayY: p.y }));
   const me = displayList.find((p) => p.id === myId);
   const cameraX = me ? (me.displayX ?? me.x) : WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
   const cameraY = me ? (me.displayY ?? me.y) : WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
+  const originX = (me?.displayX ?? me?.x ?? WORLD_WIDTH / 2) + PLAYER_SIZE / 2;
+  const originY = (me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2) + PLAYER_SIZE / 2;
 
   return (
     <div className="game-area">
@@ -124,7 +159,8 @@ export default function GameArea({ playerName }) {
           style={{
             width: WORLD_WIDTH,
             height: WORLD_HEIGHT,
-            transform: `translate(calc(-${cameraX}px + 50vw - ${PLAYER_SIZE / 2}px), calc(-${cameraY}px + 50vh - ${PLAYER_SIZE / 2}px))`,
+            transformOrigin: `${originX}px ${originY}px`,
+            transform: `translate(calc(-${cameraX}px + 50vw - ${PLAYER_SIZE / 2}px), calc(-${cameraY}px + 50vh - ${PLAYER_SIZE / 2}px)) scale(${zoom})`,
           }}
         >
           {displayList.map((p) => (
@@ -138,10 +174,16 @@ export default function GameArea({ playerName }) {
           ))}
         </div>
       </div>
-      <header className="game-header">
-        <span>KIRWORLD</span>
-        <span className="game-name">{playerName}</span>
-      </header>
+      <div className="player-card">
+        <span className="player-card-label">KIRWORLD</span>
+        <span className="player-card-name">{playerName}</span>
+      </div>
+      <ZoomControls onZoomIn={() => handleZoom(ZOOM_STEP)} onZoomOut={() => handleZoom(-ZOOM_STEP)} />
+      <ChatBox
+        messages={messages}
+        onSend={(text) => socketRef.current?.emit('chat', text)}
+        myId={myIdRef.current}
+      />
       <DPad onDirection={handleDPad} />
     </div>
   );

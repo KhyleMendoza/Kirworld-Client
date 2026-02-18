@@ -1,0 +1,271 @@
+/* Bubble: hidden on desktop, shown on mobile – placed low so it doesn’t block game */
+.chatbox-bubble {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 16;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(233, 69, 96, 0.95);
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chatbox-bubble-icon {
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .chatbox-bubble {
+    display: flex;
+  }
+}
+
+/* Close button: only on mobile when panel is open */
+.chatbox-close {
+  display: none;
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .chatbox-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 769px) {
+  .chatbox-close {
+    display: none !important;
+  }
+}
+
+/* Chat panel */
+.chatbox {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 48px);
+  max-width: 420px;
+  z-index: 15;
+  background: rgba(15, 52, 96, 0.94);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out, padding 0.2s ease-out;
+}
+
+/* Desktop: header with collapse toggle */
+.chatbox-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.chatbox-header-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chatbox-toggle {
+  display: none;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  outline: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chatbox-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.chatbox-toggle:focus {
+  outline: none;
+}
+
+.chatbox-toggle:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+@media (min-width: 769px) {
+  .chatbox-header {
+    display: flex;
+  }
+
+  .chatbox-toggle {
+    display: flex;
+  }
+
+  .chatbox--collapsed .chatbox-list,
+  .chatbox--collapsed .chatbox-form {
+    display: none;
+  }
+
+  .chatbox--collapsed {
+    max-height: 44px;
+  }
+
+  .chatbox--collapsed .chatbox-header {
+    border-bottom: none;
+  }
+}
+
+/* Main chat messages – only this area scrolls (desktop + mobile) */
+.chatbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 80px;
+  max-height: 160px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.95);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.chatbox-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chatbox-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatbox-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+
+.chatbox-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.chatbox-msg {
+  padding: 0.2rem 0;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.chatbox-msg--own .chatbox-name {
+  color: #ff8a9e;
+}
+
+.chatbox-name {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.chatbox-text {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chatbox-form {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chatbox-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  outline: none;
+}
+
+.chatbox-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.chatbox-input:focus {
+  border-color: #e94560;
+}
+
+.chatbox-send {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: #e94560;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chatbox-send:hover {
+  background: #ff6b6b;
+}
+
+/* Mobile: bubble mode – panel display:none until open, positioned higher so it doesn’t block D-pad */
+@media (max-width: 768px) {
+  .chatbox {
+    display: none;
+    bottom: 200px;
+    left: 24px;
+    right: 24px;
+    width: auto;
+    max-width: none;
+    max-height: 45vh;
+    transform: none;
+    transition: none;
+  }
+
+  .chatbox--open {
+    display: flex;
+  }
+
+  .chatbox-list {
+    max-height: 120px;
+  }
+
+  .chatbox-close {
+    display: flex;
+  }
+}
