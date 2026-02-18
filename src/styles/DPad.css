@@ -1,0 +1,54 @@
+.dpad {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 2px;
+  touch-action: none;
+  user-select: none;
+}
+
+.dpad-row {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.dpad-mid {
+  align-items: center;
+  gap: 2px;
+}
+
+.dpad-center {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.dpad-btn {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(15, 52, 96, 0.9);
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dpad-btn:active {
+  background: #e94560;
+  transform: scale(0.95);
+}
+
+@media (min-width: 769px) {
+  .dpad {
+    display: none;
+  }
+}

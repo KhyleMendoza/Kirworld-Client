@@ -1,0 +1,68 @@
+.name-entry {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.name-entry-card {
+  background: #16213e;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+}
+
+.name-entry-card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  letter-spacing: 0.05em;
+}
+
+.name-entry-card p {
+  margin: 0 0 1.5rem;
+  color: #a0a0b0;
+  font-size: 0.95rem;
+}
+
+.name-entry-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.name-entry-card input {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid #0f3460;
+  border-radius: 8px;
+  background: #0f3460;
+  color: #fff;
+  outline: none;
+}
+
+.name-entry-card input:focus {
+  border-color: #e94560;
+}
+
+.name-entry-card input::placeholder {
+  color: #6a6a80;
+}
+
+.name-entry-card button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  background: #e94560;
+  color: #fff;
+  cursor: pointer;
+}
+
+.name-entry-card button:hover {
+  background: #ff6b6b;
+}
