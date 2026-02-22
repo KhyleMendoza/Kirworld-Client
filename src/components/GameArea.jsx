@@ -11,6 +11,7 @@ const INTERPOLATION_SPEED = 0.2;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
+const PLAYER_SPEED = 5; // must match server
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.2;
@@ -44,6 +45,8 @@ export default function GameArea({ playerName }) {
   const otherLastMoveTimeRef = useRef({});
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const predictedPosRef = useRef({ x: null, y: null });
+  const [connected, setConnected] = useState(true);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -58,13 +61,24 @@ export default function GameArea({ playerName }) {
     const socket = io(serverUrl, { path: '/socket.io', transports: ['websocket', 'polling'] });
     socketRef.current = socket;
 
+    socket.on('connect', () => {
+      setConnected(true);
+      socket.emit('join', playerName);
+    });
+    socket.on('disconnect', () => setConnected(false));
+
     socket.on('joined', ({ id }) => {
       myIdRef.current = id;
+      predictedPosRef.current = { x: null, y: null };
     });
 
     socket.on('players', (list) => {
       const now = Date.now();
+      const myId = myIdRef.current;
       list.forEach((p) => {
+        if (p.id === myId) {
+          predictedPosRef.current = { x: p.x, y: p.y };
+        }
         const prev = lastPosRef.current[p.id];
         const dx = prev != null ? p.x - prev.x : 0;
         const dy = prev != null ? p.y - prev.y : 0;
@@ -85,7 +99,7 @@ export default function GameArea({ playerName }) {
       setMessages((prev) => [...prev.slice(-99), msg]);
     });
 
-    socket.emit('join', playerName);
+    if (socket.connected) socket.emit('join', playerName);
 
     return () => {
       socket.disconnect();
@@ -93,8 +107,11 @@ export default function GameArea({ playerName }) {
     };
   }, [playerName, serverUrl]);
 
-  // Throttled send movement + update my facing direction
+  // Throttled send movement + client-side prediction for local player
   useEffect(() => {
+    function clamp(v, min, max) {
+      return Math.min(Math.max(v, min), max);
+    }
     sendIntervalRef.current = setInterval(() => {
       const socket = socketRef.current;
       const k = keysRef.current;
@@ -105,6 +122,13 @@ export default function GameArea({ playerName }) {
         const dir = directionFromDxDy(dx, dy);
         if (dir) myLastDirRef.current = dir;
         myLastMoveTimeRef.current = Date.now();
+        const pred = predictedPosRef.current;
+        const x0 = pred.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
+        const y0 = pred.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
+        predictedPosRef.current = {
+          x: clamp(x0 + dx * PLAYER_SPEED, 0, WORLD_WIDTH - PLAYER_SIZE),
+          y: clamp(y0 + dy * PLAYER_SPEED, 0, WORLD_HEIGHT - PLAYER_SIZE),
+        };
       }
     }, SEND_RATE_MS);
     return () => {
@@ -171,6 +195,20 @@ export default function GameArea({ playerName }) {
     keysRef.current.s = dy === 1;
     keysRef.current.a = dx === -1;
     keysRef.current.d = dx === 1;
+    if (dx !== 0 || dy !== 0) {
+      const socket = socketRef.current;
+      if (socket?.connected) socket.emit('move', { dx, dy });
+      const dir = directionFromDxDy(dx, dy);
+      if (dir) myLastDirRef.current = dir;
+      myLastMoveTimeRef.current = Date.now();
+      const pred = predictedPosRef.current;
+      const x0 = pred.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
+      const y0 = pred.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
+      predictedPosRef.current = {
+        x: Math.min(Math.max(x0 + dx * PLAYER_SPEED, 0), WORLD_WIDTH - PLAYER_SIZE),
+        y: Math.min(Math.max(y0 + dy * PLAYER_SPEED, 0), WORLD_HEIGHT - PLAYER_SIZE),
+      };
+    }
   }, []);
 
   const handleZoom = useCallback((delta) => {
@@ -190,15 +228,21 @@ export default function GameArea({ playerName }) {
   }, []);
 
   const myId = myIdRef.current;
+  const pred = predictedPosRef.current;
   const displayList = displayPlayers.length ? displayPlayers : players.map((p) => ({ ...p, displayX: p.x, displayY: p.y }));
-  const me = displayList.find((p) => p.id === myId);
-  const originX = Math.round((me?.displayX ?? me?.x ?? WORLD_WIDTH / 2) + PLAYER_SIZE / 2);
-  const originY = Math.round((me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2) + PLAYER_SIZE / 2);
+  const meFromServer = displayList.find((p) => p.id === myId);
+  const myDisplayX = myId && pred.x != null ? pred.x : (meFromServer?.displayX ?? meFromServer?.x);
+  const myDisplayY = myId && pred.y != null ? pred.y : (meFromServer?.displayY ?? meFromServer?.y);
+  const me = meFromServer ? { ...meFromServer, displayX: myDisplayX, displayY: myDisplayY, x: myDisplayX, y: myDisplayY } : null;
+  const originX = Math.round((myDisplayX ?? WORLD_WIDTH / 2) + PLAYER_SIZE / 2);
+  const originY = Math.round((myDisplayY ?? WORLD_HEIGHT / 2) + PLAYER_SIZE / 2);
   const vw = viewport.w || 800;
   const vh = viewport.h || 600;
 
   const canvasDisplayList = displayList.map((p) => {
     const isMe = p.id === myId;
+    const x = isMe && pred.x != null ? pred.x : (p.displayX ?? p.x);
+    const y = isMe && pred.y != null ? pred.y : (p.displayY ?? p.y);
     const isMoving = isMe
       ? (keysRef.current.w || keysRef.current.a || keysRef.current.s || keysRef.current.d)
       : Date.now() < (otherMovingUntilRef.current[p.id] || 0);
@@ -207,16 +251,31 @@ export default function GameArea({ playerName }) {
     return {
       id: p.id,
       name: p.name,
-      x: Math.round(Number(p.displayX ?? p.x)),
-      y: Math.round(Number(p.displayY ?? p.y)),
+      x: Math.round(Number(x)),
+      y: Math.round(Number(y)),
       direction: isMe ? myLastDirRef.current : (otherDirectionsRef.current[p.id] || 'south'),
       isMoving: !!isMoving,
       isIdle: !!isIdle,
     };
   });
 
+  const handleRetryConnection = useCallback(() => {
+    socketRef.current?.connect();
+  }, []);
+
   return (
     <div className="game-area">
+      {!connected && (
+        <div className="disconnected-overlay" role="dialog" aria-modal="true" aria-labelledby="disconnected-title">
+          <div className="disconnected-modal">
+            <h2 id="disconnected-title" className="disconnected-title">Disconnected</h2>
+            <p className="disconnected-text">You lost connection to the server.</p>
+            <button type="button" className="disconnected-retry" onClick={handleRetryConnection}>
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
       <div className="game-viewport">
         <WorldCanvas
           width={Math.round(vw)}

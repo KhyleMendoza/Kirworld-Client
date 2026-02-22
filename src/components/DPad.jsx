@@ -1,21 +1,45 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import '../styles/DPad.css';
 
 export default function DPad({ onDirection }) {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const prevent = (e) => e.preventDefault();
+    el.addEventListener('touchstart', prevent, { passive: false });
+    el.addEventListener('touchmove', prevent, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', prevent);
+      el.removeEventListener('touchmove', prevent);
+    };
+  }, []);
+
   const handleTouchStart = useCallback(
-    (dx, dy) => () => onDirection(dx, dy),
+    (dx, dy) => (e) => {
+      e.preventDefault();
+      onDirection(dx, dy);
+    },
     [onDirection]
   );
-  const handleTouchEnd = useCallback(() => onDirection(0, 0), [onDirection]);
+  const handleTouchEnd = useCallback((e) => {
+    e.preventDefault();
+    onDirection(0, 0);
+  }, [onDirection]);
+  const handleTouchCancel = useCallback((e) => {
+    e.preventDefault();
+    onDirection(0, 0);
+  }, [onDirection]);
 
   return (
-    <div className="dpad" aria-hidden>
+    <div className="dpad" ref={containerRef} aria-hidden>
       <div className="dpad-row">
         <button
           type="button"
           className="dpad-btn dpad-up"
           onTouchStart={handleTouchStart(0, -1)}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           onMouseDown={handleTouchStart(0, -1)}
           onMouseLeave={handleTouchEnd}
           onMouseUp={handleTouchEnd}
@@ -29,6 +53,7 @@ export default function DPad({ onDirection }) {
           className="dpad-btn dpad-left"
           onTouchStart={handleTouchStart(-1, 0)}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           onMouseDown={handleTouchStart(-1, 0)}
           onMouseLeave={handleTouchEnd}
           onMouseUp={handleTouchEnd}
@@ -41,6 +66,7 @@ export default function DPad({ onDirection }) {
           className="dpad-btn dpad-right"
           onTouchStart={handleTouchStart(1, 0)}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           onMouseDown={handleTouchStart(1, 0)}
           onMouseLeave={handleTouchEnd}
           onMouseUp={handleTouchEnd}
@@ -54,6 +80,7 @@ export default function DPad({ onDirection }) {
           className="dpad-btn dpad-down"
           onTouchStart={handleTouchStart(0, 1)}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           onMouseDown={handleTouchStart(0, 1)}
           onMouseLeave={handleTouchEnd}
           onMouseUp={handleTouchEnd}
