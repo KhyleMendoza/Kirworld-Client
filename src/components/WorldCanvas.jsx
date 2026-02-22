@@ -120,12 +120,21 @@ export default function WorldCanvas({
 
     function draw() {
       const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, dpr: scaleFactor, myId: currentMyId } = propsRef.current;
+      const dprNow = Math.min(window.devicePixelRatio || 1, 2);
+      const bufW = Math.round(vw * dprNow);
+      const bufH = Math.round(vh * dprNow);
+      if (canvas.width !== bufW || canvas.height !== bufH) {
+        canvas.width = bufW;
+        canvas.height = bufH;
+        canvas.style.width = `${vw}px`;
+        canvas.style.height = `${vh}px`;
+      }
       const w = canvas.width;
       const h = canvas.height;
       ctx.save();
 
       ctx.translate(w / 2, h / 2);
-      ctx.scale(z * scaleFactor, z * scaleFactor);
+      ctx.scale(z * dprNow, z * dprNow);
       ctx.translate(-ox, -oy);
 
       ctx.imageSmoothingEnabled = false;

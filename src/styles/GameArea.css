@@ -15,6 +15,11 @@
 .world-canvas {
   display: block;
   background: #0a2647;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .world-wrap {

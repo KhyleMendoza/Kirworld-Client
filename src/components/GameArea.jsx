@@ -219,8 +219,8 @@ export default function GameArea({ playerName }) {
     <div className="game-area">
       <div className="game-viewport">
         <WorldCanvas
-          width={vw}
-          height={vh}
+          width={Math.round(vw)}
+          height={Math.round(vh)}
           zoom={zoom}
           originX={originX}
           originY={originY}
