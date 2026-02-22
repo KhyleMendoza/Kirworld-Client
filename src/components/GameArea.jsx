@@ -11,7 +11,8 @@ const INTERPOLATION_SPEED = 0.2;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
-const PLAYER_SPEED = 5; // must match server
+const PLAYER_SPEED = 5; // must match server (per move packet)
+const PIXELS_PER_SECOND = (PLAYER_SPEED / SEND_RATE_MS) * 1000; // smooth movement speed
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.2;
@@ -46,6 +47,8 @@ export default function GameArea({ playerName }) {
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const predictedPosRef = useRef({ x: null, y: null });
+  const lastPredTimeRef = useRef(performance.now());
+  const [, setSmoothTick] = useState(0);
   const [connected, setConnected] = useState(true);
 
   useEffect(() => {
@@ -107,11 +110,38 @@ export default function GameArea({ playerName }) {
     };
   }, [playerName, serverUrl]);
 
-  // Throttled send movement + client-side prediction for local player
+  // Smooth per-frame prediction (character + camera move every frame)
   useEffect(() => {
     function clamp(v, min, max) {
       return Math.min(Math.max(v, min), max);
     }
+    let rafId;
+    const tick = () => {
+      const now = performance.now();
+      const dt = Math.min(now - lastPredTimeRef.current, 100);
+      lastPredTimeRef.current = now;
+      const k = keysRef.current;
+      const dx = (k.d ? 1 : 0) - (k.a ? 1 : 0);
+      const dy = (k.s ? 1 : 0) - (k.w ? 1 : 0);
+      if (dx !== 0 || dy !== 0) {
+        const pred = predictedPosRef.current;
+        const x0 = pred.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
+        const y0 = pred.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
+        const step = PIXELS_PER_SECOND * (dt / 1000);
+        predictedPosRef.current = {
+          x: clamp(x0 + dx * step, 0, WORLD_WIDTH - PLAYER_SIZE),
+          y: clamp(y0 + dy * step, 0, WORLD_HEIGHT - PLAYER_SIZE),
+        };
+        setSmoothTick((t) => t + 1);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // Throttled send movement to server only (position updated every frame by smooth loop)
+  useEffect(() => {
     sendIntervalRef.current = setInterval(() => {
       const socket = socketRef.current;
       const k = keysRef.current;
@@ -122,13 +152,6 @@ export default function GameArea({ playerName }) {
         const dir = directionFromDxDy(dx, dy);
         if (dir) myLastDirRef.current = dir;
         myLastMoveTimeRef.current = Date.now();
-        const pred = predictedPosRef.current;
-        const x0 = pred.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
-        const y0 = pred.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
-        predictedPosRef.current = {
-          x: clamp(x0 + dx * PLAYER_SPEED, 0, WORLD_WIDTH - PLAYER_SIZE),
-          y: clamp(y0 + dy * PLAYER_SPEED, 0, WORLD_HEIGHT - PLAYER_SIZE),
-        };
       }
     }, SEND_RATE_MS);
     return () => {
@@ -201,13 +224,6 @@ export default function GameArea({ playerName }) {
       const dir = directionFromDxDy(dx, dy);
       if (dir) myLastDirRef.current = dir;
       myLastMoveTimeRef.current = Date.now();
-      const pred = predictedPosRef.current;
-      const x0 = pred.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
-      const y0 = pred.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
-      predictedPosRef.current = {
-        x: Math.min(Math.max(x0 + dx * PLAYER_SPEED, 0), WORLD_WIDTH - PLAYER_SIZE),
-        y: Math.min(Math.max(y0 + dy * PLAYER_SPEED, 0), WORLD_HEIGHT - PLAYER_SIZE),
-      };
     }
   }, []);
 
