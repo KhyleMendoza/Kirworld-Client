@@ -12,11 +12,16 @@
   overflow: hidden;
 }
 
+.world-canvas {
+  display: block;
+  background: #0a2647;
+}
+
 .world-wrap {
   position: absolute;
   left: 0;
   top: 0;
-  background: #0f3460;
+  background: linear-gradient(160deg, #0a2647 0%, #0f3460 40%, #1a4a7a 100%);
   will-change: transform;
 }
 
@@ -25,9 +30,9 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: calc(32px * var(--world-zoom, 1)) calc(32px * var(--world-zoom, 1));
   pointer-events: none;
 }
 
@@ -62,40 +67,38 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-/* Player */
+/* Player – size set inline from zoom; integer position for sharp pixels */
 .player {
   position: absolute;
   left: 0;
   top: 0;
-  width: 32px;
-  height: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   will-change: transform;
-  transition: transform 0.05s linear;
   z-index: 2;
-}
-
-.player-sprite {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: #4a9eff;
-  border: 2px solid #2a7ad4;
-  margin: 0 auto 2px;
-}
-
-.player--you .player-sprite {
-  background: #e94560;
-  border-color: #c73e54;
+  backface-visibility: hidden;
 }
 
 .player-name {
   display: block;
   font-size: 10px;
+  font-weight: 600;
   white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-align: center;
+  margin-bottom: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   color: #fff;
 }
 
-.player--you .player-name {
-  color: #ff8a9e;
+.player-sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }

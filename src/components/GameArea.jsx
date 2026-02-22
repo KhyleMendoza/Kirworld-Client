@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import Player from './Player';
+import WorldCanvas from './WorldCanvas';
 import DPad from './DPad';
 import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
@@ -10,10 +10,22 @@ const SEND_RATE_MS = 80;
 const INTERPOLATION_SPEED = 0.2;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
-const PLAYER_SIZE = 32;
+const PLAYER_SIZE = 48;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.2;
+
+// Order matches atan2(dy,dx)+PI in steps of PI/4: west, sw, north, se, east, ne, south, nw
+const IDLE_AFK_MS = 10000;
+
+const ROTATION_NAMES = ['west', 'south-west', 'north', 'south-east', 'east', 'north-east', 'south', 'north-west'];
+
+function directionFromDxDy(dx, dy) {
+  if (dx === 0 && dy === 0) return null;
+  const angle = Math.atan2(dy, dx);
+  const index = Math.round((angle + Math.PI) / (Math.PI / 4)) % 8;
+  return ROTATION_NAMES[index];
+}
 
 export default function GameArea({ playerName }) {
   const socketRef = useRef(null);
@@ -24,6 +36,21 @@ export default function GameArea({ playerName }) {
   const sendIntervalRef = useRef(null);
   const [displayPlayers, setDisplayPlayers] = useState([]);
   const [messages, setMessages] = useState([]);
+  const myLastDirRef = useRef('south');
+  const lastPosRef = useRef({});
+  const otherDirectionsRef = useRef({});
+  const otherMovingUntilRef = useRef({});
+  const myLastMoveTimeRef = useRef(Date.now());
+  const otherLastMoveTimeRef = useRef({});
+  const [, setMovingTick] = useState(0);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   // Connect and join (use VITE_WS_URL in production)
   const serverUrl = import.meta.env.VITE_WS_URL || window.location.origin;
@@ -36,7 +63,22 @@ export default function GameArea({ playerName }) {
     });
 
     socket.on('players', (list) => {
+      const now = Date.now();
+      list.forEach((p) => {
+        const prev = lastPosRef.current[p.id];
+        const dx = prev != null ? p.x - prev.x : 0;
+        const dy = prev != null ? p.y - prev.y : 0;
+        const dir = directionFromDxDy(dx, dy);
+        if (dir) otherDirectionsRef.current[p.id] = dir;
+        if (dx !== 0 || dy !== 0) {
+          otherMovingUntilRef.current[p.id] = now + 220;
+          otherLastMoveTimeRef.current[p.id] = now;
+        }
+        if (prev == null) otherLastMoveTimeRef.current[p.id] = now;
+        lastPosRef.current[p.id] = { x: p.x, y: p.y };
+      });
       setPlayers(list);
+      setTimeout(() => setMovingTick((t) => t + 1), 250);
     });
 
     socket.on('chat', (msg) => {
@@ -51,15 +93,19 @@ export default function GameArea({ playerName }) {
     };
   }, [playerName, serverUrl]);
 
-  // Throttled send movement
+  // Throttled send movement + update my facing direction
   useEffect(() => {
     sendIntervalRef.current = setInterval(() => {
       const socket = socketRef.current;
-      if (!socket?.connected) return;
       const k = keysRef.current;
       const dx = (k.d ? 1 : 0) - (k.a ? 1 : 0);
       const dy = (k.s ? 1 : 0) - (k.w ? 1 : 0);
-      if (dx !== 0 || dy !== 0) socket.emit('move', { dx, dy });
+      if (dx !== 0 || dy !== 0) {
+        if (socket?.connected) socket.emit('move', { dx, dy });
+        const dir = directionFromDxDy(dx, dy);
+        if (dir) myLastDirRef.current = dir;
+        myLastMoveTimeRef.current = Date.now();
+      }
     }, SEND_RATE_MS);
     return () => {
       if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
@@ -146,33 +192,41 @@ export default function GameArea({ playerName }) {
   const myId = myIdRef.current;
   const displayList = displayPlayers.length ? displayPlayers : players.map((p) => ({ ...p, displayX: p.x, displayY: p.y }));
   const me = displayList.find((p) => p.id === myId);
-  const cameraX = me ? (me.displayX ?? me.x) : WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
-  const cameraY = me ? (me.displayY ?? me.y) : WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
-  const originX = (me?.displayX ?? me?.x ?? WORLD_WIDTH / 2) + PLAYER_SIZE / 2;
-  const originY = (me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2) + PLAYER_SIZE / 2;
+  const originX = Math.round((me?.displayX ?? me?.x ?? WORLD_WIDTH / 2) + PLAYER_SIZE / 2);
+  const originY = Math.round((me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2) + PLAYER_SIZE / 2);
+  const vw = viewport.w || 800;
+  const vh = viewport.h || 600;
+
+  const canvasDisplayList = displayList.map((p) => {
+    const isMe = p.id === myId;
+    const isMoving = isMe
+      ? (keysRef.current.w || keysRef.current.a || keysRef.current.s || keysRef.current.d)
+      : Date.now() < (otherMovingUntilRef.current[p.id] || 0);
+    const lastMove = isMe ? myLastMoveTimeRef.current : (otherLastMoveTimeRef.current[p.id] ?? 0);
+    const isIdle = !isMoving && (Date.now() - lastMove >= IDLE_AFK_MS);
+    return {
+      id: p.id,
+      name: p.name,
+      x: Math.round(Number(p.displayX ?? p.x)),
+      y: Math.round(Number(p.displayY ?? p.y)),
+      direction: isMe ? myLastDirRef.current : (otherDirectionsRef.current[p.id] || 'south'),
+      isMoving: !!isMoving,
+      isIdle: !!isIdle,
+    };
+  });
 
   return (
     <div className="game-area">
       <div className="game-viewport">
-        <div
-          className="world-wrap"
-          style={{
-            width: WORLD_WIDTH,
-            height: WORLD_HEIGHT,
-            transformOrigin: `${originX}px ${originY}px`,
-            transform: `translate(calc(-${cameraX}px + 50vw - ${PLAYER_SIZE / 2}px), calc(-${cameraY}px + 50vh - ${PLAYER_SIZE / 2}px)) scale(${zoom})`,
-          }}
-        >
-          {displayList.map((p) => (
-            <Player
-              key={p.id}
-              name={p.name}
-              x={p.displayX ?? p.x}
-              y={p.displayY ?? p.y}
-              isYou={p.id === myId}
-            />
-          ))}
-        </div>
+        <WorldCanvas
+          width={vw}
+          height={vh}
+          zoom={zoom}
+          originX={originX}
+          originY={originY}
+          displayList={canvasDisplayList}
+          myId={myId}
+        />
       </div>
       <div className="player-card">
         <span className="player-card-label">KIRWORLD</span>
