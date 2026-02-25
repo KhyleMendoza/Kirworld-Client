@@ -88,6 +88,7 @@ export default function GameArea({ playerName }) {
     });
 
     socket.on('chat', (msg) => {
+      if (msg.system && msg.id === myIdRef.current) return;
       setMessages((prev) => [...prev.slice(-99), msg]);
     });
 
@@ -269,6 +270,7 @@ export default function GameArea({ playerName }) {
         messages={messages}
         onSend={(text) => socketRef.current?.emit('chat', text)}
         myId={myIdRef.current}
+        playerCount={players.length}
       />
       <DPad onDirection={handleDPad} />
     </div>

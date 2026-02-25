@@ -97,6 +97,29 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
+.chatbox-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chatbox-player-count {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.chatbox-player-count-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
 .chatbox-toggle {
   display: none;
   width: 28px;
@@ -190,6 +213,11 @@
 
 .chatbox-msg--own .chatbox-name {
   color: #ff8a9e;
+}
+
+.chatbox-msg--system .chatbox-system {
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
 }
 
 .chatbox-name {

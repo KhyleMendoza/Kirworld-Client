@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import '../styles/ChatBox.css';
 
-export default function ChatBox({ messages, onSend, myId }) {
+export default function ChatBox({ messages, onSend, myId, playerCount = 0 }) {
   const [input, setInput] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
@@ -60,7 +60,12 @@ export default function ChatBox({ messages, onSend, myId }) {
         </button>
         <div className="chatbox-header" title="Chat (c)">
           <span className="chatbox-header-title">Chat</span>
-          <button
+          <div className="chatbox-header-right">
+            <span className="chatbox-player-count" aria-live="polite">
+              <span className="chatbox-player-count-dot" aria-hidden />
+              {playerCount} {playerCount === 1 ? 'player' : 'players'}
+            </span>
+            <button
             type="button"
             className="chatbox-toggle"
             onClick={() => setDesktopCollapsed((c) => !c)}
@@ -69,15 +74,22 @@ export default function ChatBox({ messages, onSend, myId }) {
           >
             {desktopCollapsed ? '▲' : '▼'}
           </button>
+          </div>
         </div>
         <ul className="chatbox-list" ref={listRef} aria-label="Chat messages">
           {messages.map((msg, i) => (
             <li
-              key={`${msg.id}-${i}`}
-              className={`chatbox-msg ${msg.id === myId ? 'chatbox-msg--own' : ''}`}
+              key={`${msg.id}-${i}-${msg.text}`}
+              className={`chatbox-msg ${msg.system ? 'chatbox-msg--system' : ''} ${msg.id === myId ? 'chatbox-msg--own' : ''}`}
             >
-              <span className="chatbox-name">{msg.name}:</span>{' '}
-              <span className="chatbox-text">{msg.text}</span>
+              {msg.system ? (
+                <span className="chatbox-system">{msg.name} {msg.text}</span>
+              ) : (
+                <>
+                  <span className="chatbox-name">{msg.name}:</span>{' '}
+                  <span className="chatbox-text">{msg.text}</span>
+                </>
+              )}
             </li>
           ))}
         </ul>
