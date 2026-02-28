@@ -220,6 +220,11 @@
   font-style: italic;
 }
 
+.chatbox-system--dev,
+.chatbox-name--dev {
+  color: #facc15 !important;
+}
+
 .chatbox-name {
   font-weight: 600;
   margin-right: 0.25rem;

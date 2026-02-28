@@ -80,13 +80,13 @@ export default function ChatBox({ messages, onSend, myId, playerCount = 0 }) {
           {messages.map((msg, i) => (
             <li
               key={`${msg.id}-${i}-${msg.text}`}
-              className={`chatbox-msg ${msg.system ? 'chatbox-msg--system' : ''} ${msg.id === myId ? 'chatbox-msg--own' : ''}`}
+              className={`chatbox-msg ${msg.system ? 'chatbox-msg--system' : ''} ${msg.id === myId ? 'chatbox-msg--own' : ''} ${msg.dev ? 'chatbox-msg--dev' : ''}`}
             >
               {msg.system ? (
-                <span className="chatbox-system">{msg.name} {msg.text}</span>
+                <span className={`chatbox-system ${msg.dev ? 'chatbox-system--dev' : ''}`}>{msg.name} {msg.text}</span>
               ) : (
                 <>
-                  <span className="chatbox-name">{msg.name}:</span>{' '}
+                  <span className={`chatbox-name ${msg.dev ? 'chatbox-name--dev' : ''}`}>{msg.name}:</span>{' '}
                   <span className="chatbox-text">{msg.text}</span>
                 </>
               )}

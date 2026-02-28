@@ -174,7 +174,7 @@ export default function WorldCanvas({
         ctx.font = '10px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = p.id === currentMyId ? '#ff8a9e' : '#fff';
+        ctx.fillStyle = p.dev ? '#facc15' : (p.id === currentMyId ? '#ff8a9e' : '#fff');
         const nameX = Math.round(px + size / 2);
         const nameY = Math.round(py - 6);
         ctx.fillText(p.name || '', nameX, nameY);

@@ -225,6 +225,7 @@ export default function GameArea({ playerName }) {
     return {
       id: p.id,
       name: p.name,
+      dev: !!p.dev,
       x: Math.round(Number(x)),
       y: Math.round(Number(y)),
       direction: isMe ? myLastDirRef.current : (otherDirectionsRef.current[p.id] || 'south'),
