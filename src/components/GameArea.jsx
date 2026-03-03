@@ -44,6 +44,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const myLastMoveTimeRef = useRef(Date.now());
   const otherLastMoveTimeRef = useRef({});
   const myPredictedRef = useRef({ x: null, y: null });
+  const targetOriginRef = useRef({ x: 0, y: 0 });
+  const [cameraOrigin, setCameraOrigin] = useState(null);
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [connected, setConnected] = useState(true);
@@ -237,6 +239,26 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const myDisplayY = (myId && pred.y != null) ? pred.y : (me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2);
   const originX = Math.round(myDisplayX + PLAYER_SIZE / 2);
   const originY = Math.round(myDisplayY + PLAYER_SIZE / 2);
+  targetOriginRef.current = { x: originX, y: originY };
+  const CAMERA_LERP = 0.12;
+  const displayOriginX = cameraOrigin != null ? cameraOrigin.x : originX;
+  const displayOriginY = cameraOrigin != null ? cameraOrigin.y : originY;
+
+  useEffect(() => {
+    let raf;
+    const tick = () => {
+      const target = targetOriginRef.current;
+      setCameraOrigin((prev) => {
+        const x = prev == null ? target.x : prev.x + (target.x - prev.x) * CAMERA_LERP;
+        const y = prev == null ? target.y : prev.y + (target.y - prev.y) * CAMERA_LERP;
+        return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const vw = viewport.w || 800;
   const vh = viewport.h || 600;
 
@@ -290,8 +312,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           width={Math.round(vw)}
           height={Math.round(vh)}
           zoom={zoom}
-          originX={originX}
-          originY={originY}
+          originX={displayOriginX}
+          originY={displayOriginY}
           displayList={canvasDisplayList}
           myId={myId}
         />

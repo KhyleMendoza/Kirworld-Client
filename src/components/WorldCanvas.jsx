@@ -133,7 +133,9 @@ export default function WorldCanvas({
       const h = canvas.height;
       ctx.save();
 
-      ctx.translate(w / 2, h / 2);
+      const cx = Math.floor(w / 2);
+      const cy = Math.floor(h / 2);
+      ctx.translate(cx, cy);
       ctx.scale(z * dprNow, z * dprNow);
       ctx.translate(-ox, -oy);
 
