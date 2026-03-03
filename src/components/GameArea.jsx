@@ -7,8 +7,9 @@ import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
 import '../styles/GameArea.css';
 
-const SEND_RATE_MS = 80;
-const INTERPOLATION_SPEED = 0.35;
+const SEND_RATE_MS = 50;
+const INTERPOLATION_SPEED = 0.55;
+const SERVER_MOVE_SPEED = 5;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
@@ -42,6 +43,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const otherMovingUntilRef = useRef({});
   const myLastMoveTimeRef = useRef(Date.now());
   const otherLastMoveTimeRef = useRef({});
+  const myPredictedRef = useRef({ x: null, y: null });
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [connected, setConnected] = useState(true);
@@ -75,8 +77,10 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       onSessionRevoked?.();
     });
 
-    socket.on('joined', ({ id }) => {
+    socket.on('joined', ({ id, x, y }) => {
       myIdRef.current = id;
+      myPredictedRef.current.x = x ?? WORLD_WIDTH / 2 - 24;
+      myPredictedRef.current.y = y ?? WORLD_HEIGHT / 2 - 24;
       setCharacterReady(true);
     });
 
@@ -94,6 +98,10 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         }
         if (prev == null) otherLastMoveTimeRef.current[p.id] = now;
         lastPosRef.current[p.id] = { x: p.x, y: p.y };
+        if (p.id === myIdRef.current) {
+          myPredictedRef.current.x = p.x;
+          myPredictedRef.current.y = p.y;
+        }
       });
       setPlayers(list);
       setTimeout(() => setMovingTick((t) => t + 1), 250);
@@ -120,6 +128,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       const dy = (k.s ? 1 : 0) - (k.w ? 1 : 0);
       if (dx !== 0 || dy !== 0) {
         if (socket?.connected) socket.emit('move', { dx, dy });
+        const pred = myPredictedRef.current;
+        if (pred.x != null && pred.y != null) {
+          pred.x = Math.min(WORLD_WIDTH - 48, Math.max(0, pred.x + dx * SERVER_MOVE_SPEED));
+          pred.y = Math.min(WORLD_HEIGHT - 48, Math.max(0, pred.y + dy * SERVER_MOVE_SPEED));
+        }
         const dir = directionFromDxDy(dx, dy);
         if (dir) myLastDirRef.current = dir;
         myLastMoveTimeRef.current = Date.now();
@@ -190,6 +203,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     if (dx !== 0 || dy !== 0) {
       const socket = socketRef.current;
       if (socket?.connected) socket.emit('move', { dx, dy });
+      const pred = myPredictedRef.current;
+      if (pred.x != null && pred.y != null) {
+        pred.x = Math.min(WORLD_WIDTH - 48, Math.max(0, pred.x + dx * SERVER_MOVE_SPEED));
+        pred.y = Math.min(WORLD_HEIGHT - 48, Math.max(0, pred.y + dy * SERVER_MOVE_SPEED));
+      }
       const dir = directionFromDxDy(dx, dy);
       if (dir) myLastDirRef.current = dir;
       myLastMoveTimeRef.current = Date.now();
@@ -212,10 +230,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   }, []);
 
   const myId = myIdRef.current;
+  const pred = myPredictedRef.current;
   const displayList = displayPlayers.length ? displayPlayers : players.map((p) => ({ ...p, displayX: p.x, displayY: p.y }));
   const me = displayList.find((p) => p.id === myId);
-  const myDisplayX = me?.displayX ?? me?.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
-  const myDisplayY = me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
+  const myDisplayX = (myId && pred.x != null) ? pred.x : (me?.displayX ?? me?.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2);
+  const myDisplayY = (myId && pred.y != null) ? pred.y : (me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2);
   const originX = Math.round(myDisplayX + PLAYER_SIZE / 2);
   const originY = Math.round(myDisplayY + PLAYER_SIZE / 2);
   const vw = viewport.w || 800;
@@ -223,8 +242,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
   const canvasDisplayList = displayList.map((p) => {
     const isMe = p.id === myId;
-    const x = p.displayX ?? p.x;
-    const y = p.displayY ?? p.y;
+    const x = isMe && pred.x != null ? pred.x : (p.displayX ?? p.x);
+    const y = isMe && pred.y != null ? pred.y : (p.displayY ?? p.y);
     const isMoving = isMe
       ? (keysRef.current.w || keysRef.current.a || keysRef.current.s || keysRef.current.d)
       : Date.now() < (otherMovingUntilRef.current[p.id] || 0);
