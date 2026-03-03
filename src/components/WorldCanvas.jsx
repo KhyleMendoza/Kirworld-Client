@@ -98,9 +98,9 @@ export default function WorldCanvas({
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, dpr: 1, myId: null });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, dpr, myId };
+  const bgCanvasRef = useRef(null);
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId };
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +118,42 @@ export default function WorldCanvas({
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
+    if (!bgCanvasRef.current) {
+      const bgCanvas = document.createElement('canvas');
+      bgCanvas.width = WORLD_WIDTH;
+      bgCanvas.height = WORLD_HEIGHT;
+      const bgCtx = bgCanvas.getContext('2d');
+      if (bgCtx) {
+        bgCtx.imageSmoothingEnabled = false;
+        const bg = bgCtx.createLinearGradient(0, 0, WORLD_WIDTH * 0.4, WORLD_HEIGHT);
+        bg.addColorStop(0, '#0a2647');
+        bg.addColorStop(0.4, '#0f3460');
+        bg.addColorStop(1, '#1a4a7a');
+        bgCtx.fillStyle = bg;
+        bgCtx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+        const g = GRID_SIZE;
+        bgCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+        bgCtx.lineWidth = 1;
+        for (let x = 0; x <= WORLD_WIDTH; x += g) {
+          bgCtx.beginPath();
+          bgCtx.moveTo(x, 0);
+          bgCtx.lineTo(x, WORLD_HEIGHT);
+          bgCtx.stroke();
+        }
+        for (let y = 0; y <= WORLD_HEIGHT; y += g) {
+          bgCtx.beginPath();
+          bgCtx.moveTo(0, y);
+          bgCtx.lineTo(WORLD_WIDTH, y);
+          bgCtx.stroke();
+        }
+      }
+      bgCanvasRef.current = bgCanvas;
+    }
+
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, dpr: scaleFactor, myId: currentMyId } = propsRef.current;
-      const dprNow = Math.min(window.devicePixelRatio || 1, 2);
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId } = propsRef.current;
+      const isMobile = typeof window !== 'undefined' && (vw <= 900 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+      const dprNow = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
       if (canvas.width !== bufW || canvas.height !== bufH) {
@@ -140,26 +173,9 @@ export default function WorldCanvas({
       ctx.imageSmoothingEnabled = false;
       ctx.imageSmoothingQuality = 'low';
 
-      const bg = ctx.createLinearGradient(0, 0, WORLD_WIDTH * 0.4, WORLD_HEIGHT);
-      bg.addColorStop(0, '#0a2647');
-      bg.addColorStop(0.4, '#0f3460');
-      bg.addColorStop(1, '#1a4a7a');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-      const g = GRID_SIZE;
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x <= WORLD_WIDTH; x += g) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, WORLD_HEIGHT);
-        ctx.stroke();
-      }
-      for (let y = 0; y <= WORLD_HEIGHT; y += g) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(WORLD_WIDTH, y);
-        ctx.stroke();
+      const bgCanvas = bgCanvasRef.current;
+      if (bgCanvas) {
+        ctx.drawImage(bgCanvas, 0, 0);
       }
 
       const size = PLAYER_SIZE;
