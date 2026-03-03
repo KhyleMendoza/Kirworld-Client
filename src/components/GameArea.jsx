@@ -7,8 +7,8 @@ import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
 import '../styles/GameArea.css';
 
-const SEND_RATE_MS = 50;
-const INTERPOLATION_SPEED = 0.55;
+const SEND_RATE_MS = 80;
+const INTERPOLATION_SPEED = 0.45;
 const SERVER_MOVE_SPEED = 5;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
