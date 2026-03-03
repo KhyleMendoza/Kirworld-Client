@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getSession } from '../lib/authApi';
 import WorldCanvas from './WorldCanvas';
-import DPad from './DPad';
+import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
 import '../styles/GameArea.css';
@@ -192,8 +192,6 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     keysRef.current.a = dx === -1;
     keysRef.current.d = dx === 1;
     if (dx !== 0 || dy !== 0) {
-      const socket = socketRef.current;
-      if (socket?.connected) socket.emit('move', { dx, dy });
       const dir = directionFromDxDy(dx, dy);
       if (dir) myLastDirRef.current = dir;
       myLastMoveTimeRef.current = Date.now();
@@ -302,7 +300,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         myId={myIdRef.current}
         playerCount={players.length}
       />
-      <DPad onDirection={handleDPad} />
+      <Joystick onDirection={handleDPad} />
     </div>
   );
 }
