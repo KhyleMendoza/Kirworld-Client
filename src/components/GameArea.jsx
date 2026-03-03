@@ -10,6 +10,8 @@ import '../styles/GameArea.css';
 const SEND_RATE_MS = 80;
 const INTERPOLATION_SPEED = 0.45;
 const SERVER_MOVE_SPEED = 5;
+const RECONCILE_SNAP_DIST = 36;
+const RECONCILE_LERP = 0.18;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
@@ -101,8 +103,22 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         if (prev == null) otherLastMoveTimeRef.current[p.id] = now;
         lastPosRef.current[p.id] = { x: p.x, y: p.y };
         if (p.id === myIdRef.current) {
-          myPredictedRef.current.x = p.x;
-          myPredictedRef.current.y = p.y;
+          const pred = myPredictedRef.current;
+          if (pred.x == null || pred.y == null) {
+            pred.x = p.x;
+            pred.y = p.y;
+          } else {
+            const ex = p.x - pred.x;
+            const ey = p.y - pred.y;
+            const dist = Math.hypot(ex, ey);
+            if (dist >= RECONCILE_SNAP_DIST) {
+              pred.x = p.x;
+              pred.y = p.y;
+            } else {
+              pred.x += ex * RECONCILE_LERP;
+              pred.y += ey * RECONCILE_LERP;
+            }
+          }
         }
       });
       setPlayers(list);
