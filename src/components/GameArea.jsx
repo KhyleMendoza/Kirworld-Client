@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import { getSession } from '../lib/authApi';
 import WorldCanvas from './WorldCanvas';
 import DPad from './DPad';
 import ZoomControls from './ZoomControls';
@@ -26,7 +27,7 @@ function directionFromDxDy(dx, dy) {
   return ROTATION_NAMES[index];
 }
 
-export default function GameArea({ playerName }) {
+export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const socketRef = useRef(null);
   const myIdRef = useRef(null);
   const [players, setPlayers] = useState([]);
@@ -44,6 +45,7 @@ export default function GameArea({ playerName }) {
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [connected, setConnected] = useState(true);
+  const [characterReady, setCharacterReady] = useState(false);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -52,20 +54,30 @@ export default function GameArea({ playerName }) {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // Connect and join (use VITE_WS_URL in production)
-  const serverUrl = import.meta.env.VITE_WS_URL || window.location.origin;
+  const serverUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL || window.location.origin;
   useEffect(() => {
+    setCharacterReady(false);
     const socket = io(serverUrl, { path: '/socket.io', transports: ['websocket', 'polling'] });
     socketRef.current = socket;
+    const session = getSession();
+    const payload = { name: String(playerName ?? 'Player'), token: session?.token ?? null };
 
     socket.on('connect', () => {
       setConnected(true);
-      socket.emit('join', playerName);
+      socket.emit('join', payload);
     });
     socket.on('disconnect', () => setConnected(false));
 
+    socket.on('session_revoked', () => {
+      onSessionRevoked?.();
+    });
+    socket.on('join_failed', () => {
+      onSessionRevoked?.();
+    });
+
     socket.on('joined', ({ id }) => {
       myIdRef.current = id;
+      setCharacterReady(true);
     });
 
     socket.on('players', (list) => {
@@ -92,7 +104,7 @@ export default function GameArea({ playerName }) {
       setMessages((prev) => [...prev.slice(-99), msg]);
     });
 
-    if (socket.connected) socket.emit('join', playerName);
+    if (socket.connected) socket.emit('join', payload);
 
     return () => {
       socket.disconnect();
@@ -100,7 +112,6 @@ export default function GameArea({ playerName }) {
     };
   }, [playerName, serverUrl]);
 
-  // Send movement to server (server is source of truth for all positions)
   useEffect(() => {
     sendIntervalRef.current = setInterval(() => {
       const socket = socketRef.current;
@@ -119,7 +130,6 @@ export default function GameArea({ playerName }) {
     };
   }, []);
 
-  // Keyboard: WASD + Arrow keys (ignored when chat input is focused)
   useEffect(() => {
     const isInputFocused = () => {
       const el = document.activeElement;
@@ -151,7 +161,6 @@ export default function GameArea({ playerName }) {
     };
   }, []);
 
-  // Interpolate display positions toward server positions
   useEffect(() => {
     if (!players.length) {
       setDisplayPlayers([]);
@@ -191,7 +200,6 @@ export default function GameArea({ playerName }) {
     setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
   }, []);
 
-  // Desktop: mouse wheel zoom (skip when over chat so chat list can scroll like on mobile)
   useEffect(() => {
     const onWheel = (e) => {
       const inChat = e.target.closest?.('.chatbox, .chatbox-list');
@@ -224,7 +232,7 @@ export default function GameArea({ playerName }) {
     const isIdle = !isMoving && (Date.now() - lastMove >= IDLE_AFK_MS);
     return {
       id: p.id,
-      name: p.name,
+      name: typeof p.name === 'string' ? p.name : 'Player',
       dev: !!p.dev,
       x: Math.round(Number(x)),
       y: Math.round(Number(y)),
@@ -251,6 +259,13 @@ export default function GameArea({ playerName }) {
           </div>
         </div>
       )}
+      {!characterReady && connected && (
+        <div className="character-loading-overlay" aria-live="polite">
+          <div className="character-loading-modal">
+            <p className="character-loading-text">Entering world…</p>
+          </div>
+        </div>
+      )}
       <div className="game-viewport">
         <WorldCanvas
           width={Math.round(vw)}
@@ -265,6 +280,16 @@ export default function GameArea({ playerName }) {
       <div className="player-card">
         <span className="player-card-label">KIRWORLD</span>
         <span className="player-card-name">{playerName}</span>
+        {onLogout && (
+          <button
+            type="button"
+            className="player-card-logout"
+            onClick={onLogout}
+            title="Log out"
+          >
+            Log out
+          </button>
+        )}
       </div>
       <ZoomControls onZoomIn={() => handleZoom(ZOOM_STEP)} onZoomOut={() => handleZoom(-ZOOM_STEP)} />
       <ChatBox

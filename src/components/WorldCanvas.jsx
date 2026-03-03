@@ -25,7 +25,7 @@ const idleGlob = import.meta.glob('../character/breathing-idle/*/*.png', { eager
 const DIRECTIONS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
 const DEFAULT_DIR = 'south';
 const WORLD_WIDTH = 3200;
-const WORLD_HEIGHT = 2400;
+const WORLD_HEIGHT = 3200;
 const PLAYER_SIZE = 48;
 const GRID_SIZE = 32;
 const WALK_FRAME_MS = 90;
@@ -177,7 +177,8 @@ export default function WorldCanvas({
         ctx.fillStyle = p.dev ? '#facc15' : (p.id === currentMyId ? '#ff8a9e' : '#fff');
         const nameX = Math.round(px + size / 2);
         const nameY = Math.round(py - 6);
-        ctx.fillText(p.name || '', nameX, nameY);
+        const nameStr = typeof p.name === 'string' ? p.name : 'Player';
+        ctx.fillText(nameStr, nameX, nameY);
       }
 
       ctx.restore();

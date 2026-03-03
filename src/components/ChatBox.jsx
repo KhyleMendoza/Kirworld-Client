@@ -83,10 +83,10 @@ export default function ChatBox({ messages, onSend, myId, playerCount = 0 }) {
               className={`chatbox-msg ${msg.system ? 'chatbox-msg--system' : ''} ${msg.id === myId ? 'chatbox-msg--own' : ''} ${msg.dev ? 'chatbox-msg--dev' : ''}`}
             >
               {msg.system ? (
-                <span className={`chatbox-system ${msg.dev ? 'chatbox-system--dev' : ''}`}>{msg.name} {msg.text}</span>
+                <span className={`chatbox-system ${msg.dev ? 'chatbox-system--dev' : ''}`}>{typeof msg.name === 'string' ? msg.name : 'Player'} {msg.text}</span>
               ) : (
                 <>
-                  <span className={`chatbox-name ${msg.dev ? 'chatbox-name--dev' : ''}`}>{msg.name}:</span>{' '}
+                  <span className={`chatbox-name ${msg.dev ? 'chatbox-name--dev' : ''}`}>{typeof msg.name === 'string' ? msg.name : 'Player'}:</span>{' '}
                   <span className="chatbox-text">{msg.text}</span>
                 </>
               )}

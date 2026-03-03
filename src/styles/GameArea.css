@@ -72,6 +72,24 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
+.player-card-logout {
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  pointer-events: auto;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.player-card-logout:hover {
+  color: #ff6b6b;
+}
+
 /* Player – size set inline from zoom; integer position for sharp pixels */
 .player {
   position: absolute;
@@ -109,6 +127,32 @@
 }
 
 /* Disconnected overlay */
+.character-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.character-loading-modal {
+  background: rgba(15, 52, 96, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.character-loading-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .disconnected-overlay {
   position: fixed;
   inset: 0;
