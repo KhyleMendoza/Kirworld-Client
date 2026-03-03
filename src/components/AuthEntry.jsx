@@ -16,8 +16,18 @@ export default function AuthEntry({ onSuccess, disconnectMessage, onDismissDisco
     e.preventDefault();
     setError('');
     setLoading(true);
-    const trimmedName = username.trim().slice(0, 20) || 'Player';
+    const trimmedName = username.trim().slice(0, 20);
     const trimmedEmail = email.trim();
+    if (!trimmedName) {
+      setError('Username is required');
+      setLoading(false);
+      return;
+    }
+    if (!/^[A-Za-z0-9_]+$/.test(trimmedName)) {
+      setError('Username can only use letters, numbers, and underscores (no spaces or symbols)');
+      setLoading(false);
+      return;
+    }
     if (!trimmedEmail || !password) {
       setError('Email and password are required');
       setLoading(false);

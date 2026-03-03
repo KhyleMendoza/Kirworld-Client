@@ -5,6 +5,7 @@ import WorldCanvas from './WorldCanvas';
 import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
+import Inventory from './Inventory';
 import '../styles/GameArea.css';
 
 const SEND_RATE_MS = 60;
@@ -294,6 +295,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         )}
       </div>
       <ZoomControls onZoomIn={() => handleZoom(ZOOM_STEP)} onZoomOut={() => handleZoom(-ZOOM_STEP)} />
+      <Inventory />
       <ChatBox
         messages={messages}
         onSend={(text) => socketRef.current?.emit('chat', text)}

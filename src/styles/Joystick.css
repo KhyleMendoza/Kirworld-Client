@@ -1,4 +1,4 @@
-.joystick {
+ .joystick {
   position: fixed;
   bottom: 26px;
   left: 26px;
@@ -44,6 +44,12 @@
 @media (min-width: 769px) {
   .joystick {
     display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .joystick {
+    bottom: 96px;
   }
 }
 
