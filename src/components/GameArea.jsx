@@ -7,11 +7,9 @@ import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
 import '../styles/GameArea.css';
 
-const SEND_RATE_MS = 80;
-const INTERPOLATION_SPEED = 0.45;
+const SEND_RATE_MS = 50;
+const INTERPOLATION_SPEED = 0.55;
 const SERVER_MOVE_SPEED = 5;
-const RECONCILE_SNAP_DIST = 36;
-const RECONCILE_LERP = 0.18;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
@@ -46,8 +44,6 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const myLastMoveTimeRef = useRef(Date.now());
   const otherLastMoveTimeRef = useRef({});
   const myPredictedRef = useRef({ x: null, y: null });
-  const targetOriginRef = useRef({ x: 0, y: 0 });
-  const [cameraOrigin, setCameraOrigin] = useState(null);
   const [, setMovingTick] = useState(0);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [connected, setConnected] = useState(true);
@@ -103,22 +99,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         if (prev == null) otherLastMoveTimeRef.current[p.id] = now;
         lastPosRef.current[p.id] = { x: p.x, y: p.y };
         if (p.id === myIdRef.current) {
-          const pred = myPredictedRef.current;
-          if (pred.x == null || pred.y == null) {
-            pred.x = p.x;
-            pred.y = p.y;
-          } else {
-            const ex = p.x - pred.x;
-            const ey = p.y - pred.y;
-            const dist = Math.hypot(ex, ey);
-            if (dist >= RECONCILE_SNAP_DIST) {
-              pred.x = p.x;
-              pred.y = p.y;
-            } else {
-              pred.x += ex * RECONCILE_LERP;
-              pred.y += ey * RECONCILE_LERP;
-            }
-          }
+          myPredictedRef.current.x = p.x;
+          myPredictedRef.current.y = p.y;
         }
       });
       setPlayers(list);
@@ -255,26 +237,6 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const myDisplayY = (myId && pred.y != null) ? pred.y : (me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2);
   const originX = Math.round(myDisplayX + PLAYER_SIZE / 2);
   const originY = Math.round(myDisplayY + PLAYER_SIZE / 2);
-  targetOriginRef.current = { x: originX, y: originY };
-  const CAMERA_LERP = 0.12;
-  const displayOriginX = cameraOrigin != null ? cameraOrigin.x : originX;
-  const displayOriginY = cameraOrigin != null ? cameraOrigin.y : originY;
-
-  useEffect(() => {
-    let raf;
-    const tick = () => {
-      const target = targetOriginRef.current;
-      setCameraOrigin((prev) => {
-        const x = prev == null ? target.x : prev.x + (target.x - prev.x) * CAMERA_LERP;
-        const y = prev == null ? target.y : prev.y + (target.y - prev.y) * CAMERA_LERP;
-        return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
-      });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   const vw = viewport.w || 800;
   const vh = viewport.h || 600;
 
@@ -328,8 +290,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           width={Math.round(vw)}
           height={Math.round(vh)}
           zoom={zoom}
-          originX={displayOriginX}
-          originY={displayOriginY}
+          originX={originX}
+          originY={originY}
           displayList={canvasDisplayList}
           myId={myId}
         />
