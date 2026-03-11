@@ -6,6 +6,7 @@ import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
 import Inventory from './Inventory';
+import FindBlocksModal from './FindBlocksModal';
 import '../styles/GameArea.css';
 
 const SEND_RATE_MS = 60;
@@ -19,6 +20,8 @@ const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.2;
 
 const IDLE_AFK_MS = 10000;
+const INVENTORY_SLOTS = 30;
+const HOTBAR_SLOTS = 5;
 
 const ROTATION_NAMES = ['west', 'south-west', 'north', 'south-east', 'east', 'north-east', 'south', 'north-west'];
 
@@ -48,6 +51,17 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [connected, setConnected] = useState(true);
   const [characterReady, setCharacterReady] = useState(false);
+  const [blocks, setBlocks] = useState([]);
+  const [placedBlocks, setPlacedBlocks] = useState([]);
+  const [findOpen, setFindOpen] = useState(false);
+  const [snapSize, setSnapSize] = useState(32);
+  const [inventorySlots, setInventorySlots] = useState(() => Array.from({ length: INVENTORY_SLOTS }, () => null));
+  const [hotbar, setHotbar] = useState([]);
+  const [selectedHotbar, setSelectedHotbar] = useState(0);
+  const [isDev, setIsDev] = useState(false);
+  const viewportRef = useRef(null);
+  const placingRef = useRef(false);
+  const [ghost, setGhost] = useState(null);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -101,12 +115,32 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         lastPosRef.current[p.id] = { x: p.x, y: p.y };
       });
       setPlayers(list);
+      const meNow = myIdRef.current ? list.find((x) => x.id === myIdRef.current) : null;
+      setIsDev(!!meNow?.dev);
       setTimeout(() => setMovingTick((t) => t + 1), 250);
     });
 
     socket.on('chat', (msg) => {
       if (msg.system && msg.id === myIdRef.current) return;
       setMessages((prev) => [...prev.slice(-99), msg]);
+    });
+
+    socket.on('blocks:list', ({ blocks: list }) => {
+      if (Array.isArray(list)) setBlocks(list);
+    });
+    socket.on('blocks:placed', ({ placed }) => {
+      if (Array.isArray(placed)) setPlacedBlocks(placed);
+    });
+    socket.on('blocks:placed:add', ({ placedBlock }) => {
+      if (!placedBlock?.id) return;
+      setPlacedBlocks((prev) => {
+        const next = prev.filter((p) => p.id !== placedBlock.id);
+        next.push(placedBlock);
+        return next;
+      });
+    });
+    socket.on('blocks:error', ({ message }) => {
+      setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System', text: String(message || 'Error'), system: true }]);
     });
 
     if (socket.connected) socket.emit('join', payload);
@@ -249,6 +283,121 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     socketRef.current?.connect();
   }, []);
 
+  const selectedBlockId = hotbar[selectedHotbar] ?? null;
+  const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+
+  const handleOpenFind = useCallback(() => {
+    if (!isDev) {
+      setMessages((prev) => [
+        ...prev.slice(-99),
+        { id: 'system', name: 'System:', text: 'You do not have permission to use this.', system: true },
+      ]);
+      return;
+    }
+    socketRef.current?.emit('blocks:list');
+    setFindOpen(true);
+  }, [isDev]);
+
+  const handleCreateBlock = useCallback((payload) => {
+    socketRef.current?.emit('blocks:create', payload);
+  }, []);
+
+  const handleAddBlockToInventory = useCallback((blockId) => {
+    setInventorySlots((prev) => {
+      const alreadyHas = prev.some((item) => item?.type === 'block' && item.blockId === blockId);
+      if (alreadyHas) return prev;
+      const next = prev.slice();
+      const idx = next.findIndex((s) => s == null);
+      if (idx === -1) return prev;
+      next[idx] = { type: 'block', blockId };
+      return next;
+    });
+    setHotbar((prev) => {
+      if (prev.includes(blockId)) return prev;
+      if (prev.length >= HOTBAR_SLOTS) {
+        const without = prev.filter((id) => id !== blockId);
+        const next = [blockId, ...without].slice(0, HOTBAR_SLOTS);
+        setSelectedHotbar(0);
+        return next;
+      }
+      const next = prev.concat(blockId);
+      setSelectedHotbar(next.length - 1);
+      return next;
+    });
+  }, []);
+
+  const handleAssignHotbar = useCallback((blockId) => {
+    setHotbar((prev) => {
+      const without = prev.filter((id) => id !== blockId);
+      const candidate = blockId;
+      const next = [candidate, ...without].slice(0, HOTBAR_SLOTS);
+      setSelectedHotbar(0);
+      return next;
+    });
+  }, []);
+
+  const computeWorldFromClient = useCallback((clientX, clientY) => {
+    const vwNow = viewport.w || 800;
+    const vhNow = viewport.h || 600;
+    const worldX = originX + (clientX - vwNow / 2) / zoom;
+    const worldY = originY + (clientY - vhNow / 2) / zoom;
+    return { worldX, worldY };
+  }, [originX, originY, viewport.w, viewport.h, zoom]);
+
+  const placeFromEvent = useCallback((e) => {
+    if (!selectedBlock || !isDev) return;
+    const target = e.target;
+    if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (clientX == null || clientY == null) return;
+    const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+    const grid = snapSize === 64 ? 64 : 32;
+    const snappedX = Math.round(worldX / grid) * grid;
+    const snappedY = Math.round(worldY / grid) * grid;
+    socketRef.current?.emit('blocks:place', { blockId: selectedBlock.id, x: snappedX, y: snappedY });
+  }, [selectedBlock, computeWorldFromClient, snapSize, isDev]);
+
+  useEffect(() => {
+    if (!selectedBlock || !isDev) {
+      setGhost(null);
+      return;
+    }
+    const el = viewportRef.current;
+    if (!el) return;
+    const onMove = (e) => {
+      const target = e.target;
+      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+      const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+      if (clientX == null || clientY == null) return;
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const grid = snapSize === 64 ? 64 : 32;
+      const snappedX = Math.round(worldX / grid) * grid;
+      const snappedY = Math.round(worldY / grid) * grid;
+      setGhost({ blockId: selectedBlock.id, x: snappedX, y: snappedY, size: selectedBlock.size, alpha: 0.55 });
+      if (placingRef.current) {
+        placeFromEvent(e);
+      }
+    };
+    const onLeave = () => {
+      setGhost(null);
+      placingRef.current = false;
+    };
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onLeave);
+    el.addEventListener('touchcancel', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onLeave);
+      el.removeEventListener('touchcancel', onLeave);
+    };
+  }, [selectedBlock, computeWorldFromClient, snapSize, isDev, placeFromEvent]);
+
   return (
     <div className="game-area">
       {!connected && (
@@ -269,7 +418,32 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           </div>
         </div>
       )}
-      <div className="game-viewport">
+      <div
+        className="game-viewport"
+        ref={viewportRef}
+        onMouseDown={(e) => {
+          if (!selectedBlock) return;
+          placingRef.current = true;
+          placeFromEvent(e);
+        }}
+        onMouseUp={() => {
+          placingRef.current = false;
+        }}
+        onMouseLeave={() => {
+          placingRef.current = false;
+        }}
+        onTouchStart={(e) => {
+          if (!selectedBlock) return;
+          placingRef.current = true;
+          placeFromEvent(e);
+        }}
+        onTouchEnd={() => {
+          placingRef.current = false;
+        }}
+        onTouchCancel={() => {
+          placingRef.current = false;
+        }}
+      >
         <WorldCanvas
           width={Math.round(vw)}
           height={Math.round(vh)}
@@ -278,6 +452,9 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           originY={originY}
           displayList={canvasDisplayList}
           myId={myId}
+          blocks={blocks}
+          placedBlocks={placedBlocks}
+          ghost={ghost}
         />
       </div>
       <div className="player-card">
@@ -295,10 +472,27 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         )}
       </div>
       <ZoomControls onZoomIn={() => handleZoom(ZOOM_STEP)} onZoomOut={() => handleZoom(-ZOOM_STEP)} />
-      <Inventory />
+      <Inventory
+        slots={inventorySlots}
+        selectedIndex={selectedHotbar}
+        onSelectSlot={setSelectedHotbar}
+        blocks={blocks}
+        hotbar={hotbar}
+        onAssignHotbar={handleAssignHotbar}
+      />
+      <FindBlocksModal
+        open={findOpen}
+        blocks={blocks}
+        onClose={() => setFindOpen(false)}
+        onCreateBlock={handleCreateBlock}
+        onAddToInventory={handleAddBlockToInventory}
+        snapSize={snapSize}
+        onChangeSnapSize={setSnapSize}
+      />
       <ChatBox
         messages={messages}
         onSend={(text) => socketRef.current?.emit('chat', text)}
+        onFind={handleOpenFind}
         myId={myIdRef.current}
         playerCount={players.length}
       />

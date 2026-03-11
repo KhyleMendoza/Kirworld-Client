@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import '../styles/ChatBox.css';
 
-export default function ChatBox({ messages, onSend, myId, playerCount = 0 }) {
+export default function ChatBox({ messages, onSend, onFind, myId, playerCount = 0 }) {
   const [input, setInput] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
@@ -29,10 +29,14 @@ export default function ChatBox({ messages, onSend, myId, playerCount = 0 }) {
   function handleSubmit(e) {
     e.preventDefault();
     const trimmed = input.trim();
-    if (trimmed && onSend) {
-      onSend(trimmed);
+    if (!trimmed) return;
+    if (trimmed.toLowerCase().startsWith('/find')) {
+      onFind?.();
       setInput('');
+      return;
     }
+    if (onSend) onSend(trimmed);
+    setInput('');
   }
 
   return (

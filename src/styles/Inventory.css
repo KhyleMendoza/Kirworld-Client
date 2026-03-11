@@ -38,11 +38,61 @@
   border: 1px solid rgba(148, 163, 184, 0.5);
   background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), rgba(15, 23, 42, 0.95));
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+  position: relative;
+  overflow: hidden;
+}
+
+.inventory-slot-btn {
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.inventory-slot--selected {
+  border-color: rgba(233, 69, 96, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(233, 69, 96, 0.55), 0 0 0 2px rgba(233, 69, 96, 0.15);
+}
+
+.inventory-slot-tag {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.95);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .inventory-slot--hotbar {
   width: 48px;
   height: 48px;
+}
+
+.inventory-slot-btn {
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.inventory-slot--selected {
+  border-color: rgba(233, 69, 96, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(233, 69, 96, 0.55), 0 0 0 2px rgba(233, 69, 96, 0.15);
+}
+
+.inventory-slot-preview {
+  position: absolute;
+  inset: 4px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.7);
 }
 
 .inventory-panel {
