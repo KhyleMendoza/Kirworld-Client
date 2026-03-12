@@ -140,7 +140,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       });
     });
     socket.on('blocks:error', ({ message }) => {
-      setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System', text: String(message || 'Error'), system: true }]);
+      setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
     });
 
     if (socket.connected) socket.emit('join', payload);
