@@ -182,6 +182,12 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       if (key === 's' || key === 'arrowdown') k.s = true;
       if (key === 'a' || key === 'arrowleft') k.a = true;
       if (key === 'd' || key === 'arrowright') k.d = true;
+      if (key && ['1', '2', '3', '4', '5'].includes(key)) {
+        const idx = Number(key) - 1;
+        setSelectedHotbar((prev) => (prev === idx ? null : idx));
+        e.preventDefault();
+        return;
+      }
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) e.preventDefault();
     };
     const up = (e) => {
