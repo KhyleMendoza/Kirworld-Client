@@ -57,7 +57,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [snapSize, setSnapSize] = useState(32);
   const [inventorySlots, setInventorySlots] = useState(() => Array.from({ length: INVENTORY_SLOTS }, () => null));
   const [hotbar, setHotbar] = useState([]);
-  const [selectedHotbar, setSelectedHotbar] = useState(0);
+  const [selectedHotbar, setSelectedHotbar] = useState(null);
   const [isDev, setIsDev] = useState(false);
   const viewportRef = useRef(null);
   const placingRef = useRef(false);
@@ -283,7 +283,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     socketRef.current?.connect();
   }, []);
 
-  const selectedBlockId = hotbar[selectedHotbar] ?? null;
+  const selectedBlockId = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
 
   const handleOpenFind = useCallback(() => {
@@ -475,7 +475,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       <Inventory
         slots={inventorySlots}
         selectedIndex={selectedHotbar}
-        onSelectSlot={setSelectedHotbar}
+        onSelectSlot={(idx) => setSelectedHotbar((prev) => (prev === idx ? null : idx))}
         blocks={blocks}
         hotbar={hotbar}
         onAssignHotbar={handleAssignHotbar}

@@ -129,7 +129,7 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
     <div className={`inventory ${expanded ? 'inventory--expanded' : ''}`}>
       <div className="inventory-hotbar">
         {hotbarItems.map((blockId, idx) => {
-          const isSelected = idx === (selectedIndex ?? 0);
+          const isSelected = selectedIndex != null && idx === selectedIndex;
           const block = blockId ? blocksById.get(blockId) : null;
           const preview = block ? getPreview(block) : null;
           return (
