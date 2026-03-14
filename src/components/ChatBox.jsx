@@ -54,14 +54,6 @@ export default function ChatBox({ messages, onSend, onFind, myId, playerCount = 
       <div
         className={`chatbox ${mobileOpen ? 'chatbox--open' : ''} ${desktopCollapsed ? 'chatbox--collapsed' : ''}`}
       >
-        <button
-          type="button"
-          className="chatbox-close"
-          onClick={() => setMobileOpen(false)}
-          aria-label="Close chat"
-        >
-          ×
-        </button>
         <div className="chatbox-header" title="Chat (c)">
           <span className="chatbox-header-title">Chat</span>
           <div className="chatbox-header-right">
@@ -70,14 +62,22 @@ export default function ChatBox({ messages, onSend, onFind, myId, playerCount = 
               {playerCount} {playerCount === 1 ? 'player' : 'players'}
             </span>
             <button
-            type="button"
-            className="chatbox-toggle"
-            onClick={() => setDesktopCollapsed((c) => !c)}
-            aria-label={desktopCollapsed ? 'Expand chat' : 'Collapse chat'}
-            aria-expanded={!desktopCollapsed}
-          >
-            {desktopCollapsed ? '▲' : '▼'}
-          </button>
+              type="button"
+              className="chatbox-toggle"
+              onClick={() => setDesktopCollapsed((c) => !c)}
+              aria-label={desktopCollapsed ? 'Expand chat' : 'Collapse chat'}
+              aria-expanded={!desktopCollapsed}
+            >
+              {desktopCollapsed ? '▲' : '▼'}
+            </button>
+            <button
+              type="button"
+              className="chatbox-close"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close chat"
+            >
+              ×
+            </button>
           </div>
         </div>
         <ul className="chatbox-list" ref={listRef} aria-label="Chat messages">

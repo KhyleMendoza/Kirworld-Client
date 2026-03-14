@@ -333,21 +333,53 @@ export default function WorldCanvas({
           const maxVisible = 3;
           const toDraw = sorted.slice(-maxVisible);
           const baseY = nameY - 14;
-          const lineHeight = 18;
-          toDraw.forEach((bubble, indexFromBottom) => {
-            const idx = toDraw.length - 1 - indexFromBottom;
+          const lineHeight = 16;
+          const paddingX = 6;
+          const paddingY = 4;
+          const maxBubbleWidth = 200;
+          ctx.font = '11px system-ui, sans-serif';
+          const bubbleData = [];
+          for (const bubble of toDraw) {
             const life = Math.max(0, Math.min(1, 1 - (now - bubble.createdAt) / 3000));
-            if (life <= 0) return;
-            const text = String(bubble.text || '').slice(0, 80);
-            if (!text) return;
-            const bubbleY = baseY - idx * lineHeight;
-            const paddingX = 6;
-            const boxHeight = 16;
-            ctx.font = '11px system-ui, sans-serif';
-            const textWidth = ctx.measureText(text).width;
-            const boxWidth = textWidth + paddingX * 2;
+            if (life <= 0) continue;
+            const raw = String(bubble.text || '').trim();
+            if (!raw) continue;
+            const words = raw.split(/\s+/);
+            const lines = [];
+            let current = '';
+            for (const word of words) {
+              const testLine = current ? current + ' ' + word : word;
+              if (ctx.measureText(testLine).width <= maxBubbleWidth) {
+                current = testLine;
+                continue;
+              }
+              if (current) {
+                lines.push(current);
+                current = '';
+              }
+              if (ctx.measureText(word).width <= maxBubbleWidth) {
+                current = word;
+              } else {
+                let start = 0;
+                while (start < word.length) {
+                  let end = start + 1;
+                  while (end <= word.length && ctx.measureText(word.slice(start, end)).width <= maxBubbleWidth) end++;
+                  lines.push(word.slice(start, end - 1));
+                  start = end - 1;
+                }
+              }
+            }
+            if (current) lines.push(current);
+            if (lines.length === 0) continue;
+            const boxWidth = Math.min(maxBubbleWidth, Math.max(...lines.map((l) => ctx.measureText(l).width))) + paddingX * 2;
+            const boxHeight = lines.length * lineHeight + paddingY * 2;
+            bubbleData.push({ bubble, lines, boxWidth, boxHeight, life });
+          }
+          let bubbleBottom = baseY;
+          for (let i = bubbleData.length - 1; i >= 0; i--) {
+            const { lines, boxWidth, boxHeight, life } = bubbleData[i];
             const boxX = Math.round(nameX - boxWidth / 2);
-            const boxY = Math.round(bubbleY - boxHeight);
+            const boxY = Math.round(bubbleBottom - boxHeight);
             ctx.save();
             ctx.globalAlpha = life;
             const r = 6;
@@ -370,9 +402,12 @@ export default function WorldCanvas({
             ctx.fillStyle = '#e5e7eb';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, nameX, boxY + boxHeight / 2);
+            lines.forEach((line, j) => {
+              ctx.fillText(line, nameX, boxY + paddingY + lineHeight / 2 + j * lineHeight);
+            });
             ctx.restore();
-          });
+            bubbleBottom = boxY - 4;
+          }
         }
       }
 
