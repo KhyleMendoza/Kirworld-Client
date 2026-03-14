@@ -193,7 +193,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
-      setChatBubbles((prev) => prev.filter((b) => now - b.createdAt < 3000));
+      setChatBubbles((prev) => prev.filter((b) => now - b.createdAt < 4000));
     }, 200);
     return () => clearInterval(interval);
   }, []);

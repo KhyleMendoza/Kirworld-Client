@@ -340,7 +340,9 @@ export default function WorldCanvas({
           ctx.font = '11px system-ui, sans-serif';
           const bubbleData = [];
           for (const bubble of toDraw) {
-            const life = Math.max(0, Math.min(1, 1 - (now - bubble.createdAt) / 3000));
+            const age = now - bubble.createdAt;
+            if (age >= 4000) continue;
+            const life = age < 2500 ? 1 : 1 - (age - 2500) / 1500;
             if (life <= 0) continue;
             const raw = String(bubble.text || '').trim();
             if (!raw) continue;
