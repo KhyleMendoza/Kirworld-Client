@@ -39,6 +39,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [players, setPlayers] = useState([]);
   const [zoom, setZoom] = useState(1);
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
+  const lastJoystickSentRef = useRef({ dx: 0, dy: 0 });
   const sendIntervalRef = useRef(null);
   const [displayPlayers, setDisplayPlayers] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -283,6 +284,14 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       const dir = directionFromDxDy(dx, dy);
       if (dir) myLastDirRef.current = dir;
       myLastMoveTimeRef.current = Date.now();
+      const last = lastJoystickSentRef.current;
+      if (last.dx !== dx || last.dy !== dy) {
+        lastJoystickSentRef.current = { dx, dy };
+        const socket = socketRef.current;
+        if (socket?.connected) socket.emit('move', { dx, dy });
+      }
+    } else {
+      lastJoystickSentRef.current = { dx: 0, dy: 0 };
     }
   }, []);
 
