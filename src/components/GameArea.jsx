@@ -35,6 +35,7 @@ function directionFromDxDy(dx, dy) {
 export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const socketRef = useRef(null);
   const myIdRef = useRef(null);
+  const [displayName, setDisplayName] = useState(playerName);
   const [players, setPlayers] = useState([]);
   const [zoom, setZoom] = useState(1);
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
@@ -72,6 +73,10 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
   const serverUrl = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL || window.location.origin;
   useEffect(() => {
+    setDisplayName(playerName);
+  }, [playerName]);
+
+  useEffect(() => {
     setCharacterReady(false);
     const socket = io(serverUrl, { path: '/socket.io', transports: ['websocket', 'polling'] });
     socketRef.current = socket;
@@ -91,10 +96,13 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       onSessionRevoked?.();
     });
 
-    socket.on('joined', ({ id, x, y }) => {
+    socket.on('joined', ({ id, x, y, name }) => {
       myIdRef.current = id;
       if (typeof x === 'number' && typeof y === 'number') {
         lastPosRef.current[id] = { x, y };
+      }
+      if (typeof name === 'string' && name.trim()) {
+        setDisplayName(name);
       }
       setCharacterReady(true);
     });
@@ -268,9 +276,15 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     const isMe = p.id === myId;
     const x = p.displayX ?? p.x;
     const y = p.displayY ?? p.y;
-    const isMoving = isMe
-      ? (keysRef.current.w || keysRef.current.a || keysRef.current.s || keysRef.current.d)
-      : Date.now() < (otherMovingUntilRef.current[p.id] || 0);
+    let isMoving;
+    if (isMe) {
+      const k = keysRef.current;
+      const dx = (k.d ? 1 : 0) - (k.a ? 1 : 0);
+      const dy = (k.s ? 1 : 0) - (k.w ? 1 : 0);
+      isMoving = dx !== 0 || dy !== 0;
+    } else {
+      isMoving = Date.now() < (otherMovingUntilRef.current[p.id] || 0);
+    }
     const lastMove = isMe ? myLastMoveTimeRef.current : (otherLastMoveTimeRef.current[p.id] ?? 0);
     const isIdle = !isMoving && (Date.now() - lastMove >= IDLE_AFK_MS);
     return {
@@ -465,7 +479,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       </div>
       <div className="player-card">
         <span className="player-card-label">KIRWORLD</span>
-        <span className="player-card-name">{playerName}</span>
+        <span className="player-card-name">{displayName}</span>
         {onLogout && (
           <button
             type="button"

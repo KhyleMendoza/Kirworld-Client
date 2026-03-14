@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { signUp, login, setSession } from '../lib/authApi';
+import { signUp, login, setSession, clearSession } from '../lib/authApi';
 import '../styles/AuthEntry.css';
 
 export default function AuthEntry({ onSuccess, disconnectMessage, onDismissDisconnectMessage }) {
@@ -11,6 +11,18 @@ export default function AuthEntry({ onSuccess, disconnectMessage, onDismissDisco
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+
+  function handleGuest() {
+    setError('');
+    setGuestLoading(true);
+    try {
+      clearSession();
+      onSuccess?.({ username: 'Guest' });
+    } finally {
+      setGuestLoading(false);
+    }
+  }
 
   async function handleRegister(e) {
     e.preventDefault();
@@ -311,6 +323,14 @@ export default function AuthEntry({ onSuccess, disconnectMessage, onDismissDisco
             </button>
           </form>
         )}
+        <button
+          type="button"
+          className="auth-guest"
+          onClick={handleGuest}
+          disabled={loading || guestLoading}
+        >
+          {guestLoading ? 'Entering as guest…' : 'Continue as guest'}
+        </button>
       </div>
     </div>
   );

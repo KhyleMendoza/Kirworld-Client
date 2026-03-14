@@ -205,6 +205,35 @@
   cursor: not-allowed;
 }
 
+.auth-guest {
+  margin-top: 0.9rem;
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.35);
+  color: rgba(248, 250, 252, 0.92);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-guest:hover:not(:disabled) {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.55);
+  transform: translateY(-1px);
+}
+
+.auth-guest:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-guest:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .auth-disconnect {
   display: flex;
   align-items: center;
