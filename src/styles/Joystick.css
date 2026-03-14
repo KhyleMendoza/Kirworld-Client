@@ -41,13 +41,13 @@
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.9);
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
   .joystick {
     display: none;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .joystick {
     bottom: 96px;
   }

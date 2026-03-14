@@ -47,7 +47,7 @@
   transform: scale(0.95);
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
   .dpad {
     display: none;
   }
