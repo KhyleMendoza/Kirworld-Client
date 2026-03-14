@@ -251,11 +251,16 @@ export default function WorldCanvas({
       }
       const w = canvas.width;
       const h = canvas.height;
+      const scaleSnap = Math.round(z * dprNow * GRID_SIZE) / (GRID_SIZE * dprNow);
+      const oxSnap = Math.round(ox);
+      const oySnap = Math.round(oy);
+      const blockScale = scaleSnap * dprNow;
+      const blockSizePx = Math.round(GRID_SIZE * blockScale);
       ctx.save();
 
-      ctx.translate(w / 2, h / 2);
-      ctx.scale(z * dprNow, z * dprNow);
-      ctx.translate(-ox, -oy);
+      ctx.translate(Math.round(w / 2), Math.round(h / 2));
+      ctx.scale(scaleSnap * dprNow, scaleSnap * dprNow);
+      ctx.translate(-oxSnap, -oySnap);
 
       ctx.imageSmoothingEnabled = false;
       ctx.imageSmoothingQuality = 'low';
@@ -291,11 +296,19 @@ export default function WorldCanvas({
         return layerIndex(catA) - layerIndex(catB);
       });
 
+      const centerX = Math.round(w / 2);
+      const centerY = Math.round(h / 2);
       for (const pb of orderedPlaced) {
         const def = byId.get(pb.blockId);
         const bmp = getBlockBitmap(def);
         if (!bmp) continue;
-        ctx.drawImage(bmp, Math.round(pb.x), Math.round(pb.y), pb.size, pb.size);
+        const sx = (pb.x - oxSnap) * blockScale + centerX;
+        const sy = (pb.y - oySnap) * blockScale + centerY;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(bmp, 0, 0, pb.size, pb.size, Math.round(sx), Math.round(sy), blockSizePx, blockSizePx);
+        ctx.restore();
       }
 
       if (ghostBlock?.blockId) {
