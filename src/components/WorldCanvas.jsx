@@ -436,20 +436,6 @@ export default function WorldCanvas({
     };
   }, [sprites, width, height]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const scaleFactor = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.round(width * scaleFactor);
-    const h = Math.round(height * scaleFactor);
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-    }
-  }, [width, height]);
-
   if (!sprites) {
     return (
       <div className="world-canvas-loading" style={{ width, height, background: '#0a2647', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
