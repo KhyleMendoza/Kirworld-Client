@@ -129,14 +129,16 @@ export default function WorldCanvas({
   blocks = [],
   placedBlocks = [],
   ghost = null,
+  showGrid = false,
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
   const bgCanvasRef = useRef(null);
+  const bgGridCanvasRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
@@ -197,40 +199,45 @@ export default function WorldCanvas({
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    if (!bgCanvasRef.current) {
-      const bgCanvas = document.createElement('canvas');
-      bgCanvas.width = WORLD_WIDTH;
-      bgCanvas.height = WORLD_HEIGHT;
-      const bgCtx = bgCanvas.getContext('2d');
-      if (bgCtx) {
-        bgCtx.imageSmoothingEnabled = false;
-        const bg = bgCtx.createLinearGradient(0, 0, WORLD_WIDTH * 0.4, WORLD_HEIGHT);
-        bg.addColorStop(0, '#0a2647');
-        bg.addColorStop(0.4, '#0f3460');
-        bg.addColorStop(1, '#1a4a7a');
-        bgCtx.fillStyle = bg;
-        bgCtx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    if (!bgCanvasRef.current || !bgGridCanvasRef.current) {
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = WORLD_WIDTH;
+      baseCanvas.height = WORLD_HEIGHT;
+      const baseCtx = baseCanvas.getContext('2d');
+      if (baseCtx) {
+        baseCtx.imageSmoothingEnabled = false;
+        baseCtx.fillStyle = '#0a2647';
+        baseCtx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+      }
+      const gridCanvas = document.createElement('canvas');
+      gridCanvas.width = WORLD_WIDTH;
+      gridCanvas.height = WORLD_HEIGHT;
+      const gridCtx = gridCanvas.getContext('2d');
+      if (gridCtx) {
+        gridCtx.imageSmoothingEnabled = false;
+        gridCtx.drawImage(baseCanvas, 0, 0);
         const g = GRID_SIZE;
-        bgCtx.strokeStyle = 'rgba(255,255,255,0.04)';
-        bgCtx.lineWidth = 1;
+        gridCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+        gridCtx.lineWidth = 1;
         for (let x = 0; x <= WORLD_WIDTH; x += g) {
-          bgCtx.beginPath();
-          bgCtx.moveTo(x, 0);
-          bgCtx.lineTo(x, WORLD_HEIGHT);
-          bgCtx.stroke();
+          gridCtx.beginPath();
+          gridCtx.moveTo(x, 0);
+          gridCtx.lineTo(x, WORLD_HEIGHT);
+          gridCtx.stroke();
         }
         for (let y = 0; y <= WORLD_HEIGHT; y += g) {
-          bgCtx.beginPath();
-          bgCtx.moveTo(0, y);
-          bgCtx.lineTo(WORLD_WIDTH, y);
-          bgCtx.stroke();
+          gridCtx.beginPath();
+          gridCtx.moveTo(0, y);
+          gridCtx.lineTo(WORLD_WIDTH, y);
+          gridCtx.stroke();
         }
       }
-      bgCanvasRef.current = bgCanvas;
+      bgCanvasRef.current = baseCanvas;
+      bgGridCanvasRef.current = gridCanvas;
     }
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow } = propsRef.current;
       const isMobile = typeof window !== 'undefined' && (vw <= 900 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
       const dprNow = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
@@ -252,7 +259,7 @@ export default function WorldCanvas({
       ctx.imageSmoothingEnabled = false;
       ctx.imageSmoothingQuality = 'low';
 
-      const bgCanvas = bgCanvasRef.current;
+      const bgCanvas = showGridNow ? bgGridCanvasRef.current : bgCanvasRef.current;
       if (bgCanvas) {
         ctx.drawImage(bgCanvas, 0, 0);
       }

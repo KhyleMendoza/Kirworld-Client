@@ -313,6 +313,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
   const selectedBlockId = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+  const showGrid = !!selectedBlock;
 
   const handleOpenFind = useCallback(() => {
     if (!isDev) {
@@ -493,6 +494,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           blocks={blocks}
           placedBlocks={placedBlocks}
           ghost={ghost}
+          showGrid={showGrid}
         />
       </div>
       <div className="player-card">
