@@ -63,6 +63,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const viewportRef = useRef(null);
   const placingRef = useRef(false);
   const [ghost, setGhost] = useState(null);
+  const [chatBubbles, setChatBubbles] = useState([]);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -131,6 +132,28 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     socket.on('chat', (msg) => {
       if (msg.system && msg.id === myIdRef.current) return;
       setMessages((prev) => [...prev.slice(-99), msg]);
+      if (!msg.system && msg.id && typeof msg.text === 'string' && msg.text.trim()) {
+        const now = Date.now();
+        const text = msg.text.trim();
+        setChatBubbles((prev) => {
+          const next = [...prev, { key: `${msg.id}-${now}`, playerId: msg.id, text, createdAt: now }];
+          const grouped = new Map();
+          for (const b of next) {
+            if (!b.playerId) continue;
+            const arr = grouped.get(b.playerId) || [];
+            arr.push(b);
+            grouped.set(b.playerId, arr);
+          }
+          const limited = [];
+          const MAX_PER_PLAYER = 3;
+          for (const arr of grouped.values()) {
+            arr.sort((a, b) => a.createdAt - b.createdAt);
+            const keep = arr.slice(-MAX_PER_PLAYER);
+            limited.push(...keep);
+          }
+          return limited;
+        });
+      }
     });
 
     socket.on('blocks:list', ({ blocks: list }) => {
@@ -166,6 +189,14 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
     };
   }, [playerName, serverUrl]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setChatBubbles((prev) => prev.filter((b) => now - b.createdAt < 3000));
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     sendIntervalRef.current = setInterval(() => {
@@ -495,6 +526,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           placedBlocks={placedBlocks}
           ghost={ghost}
           showGrid={showGrid}
+          chatBubbles={chatBubbles}
         />
       </div>
       <div className="player-card">

@@ -130,6 +130,7 @@ export default function WorldCanvas({
   placedBlocks = [],
   ghost = null,
   showGrid = false,
+  chatBubbles = [],
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
@@ -137,8 +138,8 @@ export default function WorldCanvas({
   const bgCanvasRef = useRef(null);
   const bgGridCanvasRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, chatBubbles: [] });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, chatBubbles };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
@@ -237,7 +238,7 @@ export default function WorldCanvas({
     }
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, chatBubbles: bubbles } = propsRef.current;
       const isMobile = typeof window !== 'undefined' && (vw <= 900 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
       const dprNow = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
@@ -266,6 +267,15 @@ export default function WorldCanvas({
 
       const byId = new Map();
       for (const b of blockDefs || []) byId.set(b.id, b);
+
+      const bubblesByPlayer = new Map();
+      const now = Date.now();
+      for (const b of bubbles || []) {
+        if (!b || !b.playerId) continue;
+        const arr = bubblesByPlayer.get(b.playerId) || [];
+        arr.push(b);
+        bubblesByPlayer.set(b.playerId, arr);
+      }
 
       const layerIndex = (cat) => {
         if (cat === 'wallpaper') return 0;
@@ -316,6 +326,54 @@ export default function WorldCanvas({
         const nameY = Math.round(py - 6);
         const nameStr = typeof p.name === 'string' ? p.name : 'Player';
         ctx.fillText(nameStr, nameX, nameY);
+
+        const bubblesForPlayer = bubblesByPlayer.get(p.id);
+        if (bubblesForPlayer && bubblesForPlayer.length) {
+          const sorted = [...bubblesForPlayer].sort((a, b) => a.createdAt - b.createdAt);
+          const maxVisible = 3;
+          const toDraw = sorted.slice(-maxVisible);
+          const baseY = nameY - 14;
+          const lineHeight = 18;
+          toDraw.forEach((bubble, indexFromBottom) => {
+            const idx = toDraw.length - 1 - indexFromBottom;
+            const life = Math.max(0, Math.min(1, 1 - (now - bubble.createdAt) / 3000));
+            if (life <= 0) return;
+            const text = String(bubble.text || '').slice(0, 80);
+            if (!text) return;
+            const bubbleY = baseY - idx * lineHeight;
+            const paddingX = 6;
+            const boxHeight = 16;
+            ctx.font = '11px system-ui, sans-serif';
+            const textWidth = ctx.measureText(text).width;
+            const boxWidth = textWidth + paddingX * 2;
+            const boxX = Math.round(nameX - boxWidth / 2);
+            const boxY = Math.round(bubbleY - boxHeight);
+            ctx.save();
+            ctx.globalAlpha = life;
+            const r = 6;
+            ctx.beginPath();
+            ctx.moveTo(boxX + r, boxY);
+            ctx.lineTo(boxX + boxWidth - r, boxY);
+            ctx.quadraticCurveTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + r);
+            ctx.lineTo(boxX + boxWidth, boxY + boxHeight - r);
+            ctx.quadraticCurveTo(boxX + boxWidth, boxY + boxHeight, boxX + boxWidth - r, boxY + boxHeight);
+            ctx.lineTo(boxX + r, boxY + boxHeight);
+            ctx.quadraticCurveTo(boxX, boxY + boxHeight, boxX, boxY + boxHeight - r);
+            ctx.lineTo(boxX, boxY + r);
+            ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(15,23,42,0.9)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(148,163,184,0.8)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = '#e5e7eb';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, nameX, boxY + boxHeight / 2);
+            ctx.restore();
+          });
+        }
       }
 
       ctx.restore();
