@@ -15,7 +15,7 @@ const SERVER_MOVE_SPEED = 5;
 const WORLD_WIDTH = 3200;
 const WORLD_HEIGHT = 2400;
 const PLAYER_SIZE = 48;
-const MIN_ZOOM = 0.5;
+const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.2;
 
