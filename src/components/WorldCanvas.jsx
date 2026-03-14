@@ -239,8 +239,7 @@ export default function WorldCanvas({
 
     function draw() {
       const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, chatBubbles: bubbles } = propsRef.current;
-      const isMobile = typeof window !== 'undefined' && (vw <= 900 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
-      const dprNow = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      const dprNow = Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
       if (canvas.width !== bufW || canvas.height !== bufH) {
