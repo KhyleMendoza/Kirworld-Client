@@ -139,15 +139,23 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     socket.on('blocks:placed', ({ placed }) => {
       if (Array.isArray(placed)) setPlacedBlocks(placed);
     });
+    socket.on('blocks:placed:remove', ({ ids }) => {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const set = new Set(ids);
+      setPlacedBlocks((prev) => prev.filter((p) => !set.has(p.id)));
+    });
     socket.on('blocks:placed:add', ({ placedBlock }) => {
       if (!placedBlock?.id) return;
       setPlacedBlocks((prev) => {
-        const next = prev.filter((p) => p.id !== placedBlock.id);
+        const next = prev.filter(
+          (p) => p.id !== placedBlock.id && !(p.x === placedBlock.x && p.y === placedBlock.y && String(p.id).startsWith('opt-'))
+        );
         next.push(placedBlock);
         return next;
       });
     });
     socket.on('blocks:error', ({ message }) => {
+      setPlacedBlocks((prev) => prev.filter((p) => !String(p.id).startsWith('opt-')));
       setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
     });
 
@@ -375,6 +383,16 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     const grid = snapSize === 64 ? 64 : 32;
     const snappedX = Math.round(worldX / grid) * grid;
     const snappedY = Math.round(worldY / grid) * grid;
+    const optId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setPlacedBlocks((prev) => {
+      const withoutCell = prev.filter(
+        (p) => !(p.x === snappedX && p.y === snappedY && String(p.id).startsWith('opt-'))
+      );
+      return [
+        ...withoutCell,
+        { id: optId, blockId: selectedBlock.id, x: snappedX, y: snappedY, size: selectedBlock.size },
+      ];
+    });
     socketRef.current?.emit('blocks:place', { blockId: selectedBlock.id, x: snappedX, y: snappedY });
   }, [selectedBlock, computeWorldFromClient, snapSize, isDev]);
 
