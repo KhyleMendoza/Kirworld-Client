@@ -12,8 +12,11 @@ import '../styles/GameArea.css';
 const SEND_RATE_MS = 60;
 const INTERPOLATION_SPEED = 0.7;
 const SERVER_MOVE_SPEED = 5;
-const WORLD_WIDTH = 3200;
-const WORLD_HEIGHT = 2400;
+const WORLD_TILE_SIZE = 32;
+const WORLD_TILES_X = 500;
+const WORLD_TILES_Y = 500;
+const WORLD_WIDTH = WORLD_TILES_X * WORLD_TILE_SIZE;
+const WORLD_HEIGHT = WORLD_TILES_Y * WORLD_TILE_SIZE;
 const PLAYER_SIZE = 48;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2;
@@ -63,6 +66,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [isDev, setIsDev] = useState(false);
   const viewportRef = useRef(null);
   const placingRef = useRef(false);
+  const lastPointerRef = useRef({ x: null, y: null, ok: false });
+  const lastPlaceCellRef = useRef({ x: null, y: null });
   const [ghost, setGhost] = useState(null);
   const [chatBubbles, setChatBubbles] = useState([]);
 
@@ -315,10 +320,40 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const me = displayList.find((p) => p.id === myId);
   const myDisplayX = me?.displayX ?? me?.x ?? WORLD_WIDTH / 2 - PLAYER_SIZE / 2;
   const myDisplayY = me?.displayY ?? me?.y ?? WORLD_HEIGHT / 2 - PLAYER_SIZE / 2;
-  const originX = Math.round(myDisplayX + PLAYER_SIZE / 2);
-  const originY = Math.round(myDisplayY + PLAYER_SIZE / 2);
+
   const vw = viewport.w || 800;
   const vh = viewport.h || 600;
+
+  let originX = Math.round(myDisplayX + PLAYER_SIZE / 2);
+  let originY = Math.round(myDisplayY + PLAYER_SIZE / 2);
+
+  if (zoom > 0) {
+    const snappedZoom = Math.max(0.01, Math.round(zoom * WORLD_TILE_SIZE) / WORLD_TILE_SIZE);
+    const halfViewWorldW = vw / (2 * snappedZoom);
+    const halfViewWorldH = vh / (2 * snappedZoom);
+    if (WORLD_WIDTH > 0) {
+      if (WORLD_WIDTH <= halfViewWorldW * 2) {
+        originX = WORLD_WIDTH / 2;
+      } else {
+        const minOx = halfViewWorldW;
+        const maxOx = WORLD_WIDTH - halfViewWorldW;
+        originX = Math.max(minOx, Math.min(maxOx, originX));
+      }
+    }
+    if (WORLD_HEIGHT > 0) {
+      if (WORLD_HEIGHT <= halfViewWorldH * 2) {
+        originY = WORLD_HEIGHT / 2;
+      } else {
+        const minOy = halfViewWorldH;
+        const maxOy = WORLD_HEIGHT - halfViewWorldH;
+        originY = Math.max(minOy, Math.min(maxOy, originY));
+      }
+    }
+  }
+
+  const worldTilesX = Math.floor(WORLD_WIDTH / WORLD_TILE_SIZE);
+  const worldTilesY = Math.floor(WORLD_HEIGHT / WORLD_TILE_SIZE);
+  const worldTilesTotal = worldTilesX * worldTilesY;
 
   const canvasDisplayList = displayList.map((p) => {
     const isMe = p.id === myId;
@@ -413,17 +448,36 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     return { worldX, worldY };
   }, [originX, originY, viewport.w, viewport.h, zoom]);
 
-  const placeFromEvent = useCallback((e) => {
+  const clampPlacement = useCallback((x, y, size) => {
+    const maxX = Math.max(0, WORLD_WIDTH - size);
+    const maxY = Math.max(0, WORLD_HEIGHT - size);
+    const cx = Math.min(Math.max(x, 0), maxX);
+    const cy = Math.min(Math.max(y, 0), maxY);
+    return { x: cx, y: cy };
+  }, []);
+
+  const updateGhostFromClient = useCallback((clientX, clientY) => {
     if (!selectedBlock || !isDev) return;
-    const target = e.target;
-    if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
-    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
-    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
-    if (clientX == null || clientY == null) return;
     const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
     const grid = snapSize === 64 ? 64 : 32;
-    const snappedX = Math.round(worldX / grid) * grid;
-    const snappedY = Math.round(worldY / grid) * grid;
+    const snappedX0 = Math.floor(worldX / grid) * grid;
+    const snappedY0 = Math.floor(worldY / grid) * grid;
+    const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, selectedBlock.size);
+    setGhost({ blockId: selectedBlock.id, x: snappedX, y: snappedY, size: selectedBlock.size, alpha: 0.55 });
+  }, [selectedBlock, isDev, computeWorldFromClient, snapSize, clampPlacement]);
+
+  const placeFromClient = useCallback((clientX, clientY) => {
+    if (!selectedBlock || !isDev) return;
+    const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+    const grid = snapSize === 64 ? 64 : 32;
+    const snappedX0 = Math.floor(worldX / grid) * grid;
+    const snappedY0 = Math.floor(worldY / grid) * grid;
+    const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, selectedBlock.size);
+
+    const last = lastPlaceCellRef.current;
+    if (last.x === snappedX && last.y === snappedY) return;
+    lastPlaceCellRef.current = { x: snappedX, y: snappedY };
+
     const optId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setPlacedBlocks((prev) => {
       const withoutCell = prev.filter(
@@ -435,7 +489,32 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       ];
     });
     socketRef.current?.emit('blocks:place', { blockId: selectedBlock.id, x: snappedX, y: snappedY });
-  }, [selectedBlock, computeWorldFromClient, snapSize, isDev]);
+  }, [selectedBlock, isDev, computeWorldFromClient, snapSize, clampPlacement]);
+
+  const placeFromEvent = useCallback((e) => {
+    if (!selectedBlock || !isDev) return;
+    const target = e.target;
+    if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (clientX == null || clientY == null) return;
+    placeFromClient(clientX, clientY);
+  }, [selectedBlock, isDev, placeFromClient]);
+
+  useEffect(() => {
+    if (!selectedBlock || !isDev) return;
+    let raf = 0;
+    const tick = () => {
+      const p = lastPointerRef.current;
+      if (p.ok && p.x != null && p.y != null) {
+        updateGhostFromClient(p.x, p.y);
+        if (placingRef.current) placeFromClient(p.x, p.y);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [selectedBlock, isDev, updateGhostFromClient, placeFromClient]);
 
   useEffect(() => {
     if (!selectedBlock || !isDev) {
@@ -446,20 +525,23 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     if (!el) return;
     const onMove = (e) => {
       const target = e.target;
-      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) {
+        lastPointerRef.current = { x: null, y: null, ok: false };
+        setGhost(null);
+        return;
+      }
       const clientX = e.clientX ?? e.touches?.[0]?.clientX;
       const clientY = e.clientY ?? e.touches?.[0]?.clientY;
       if (clientX == null || clientY == null) return;
-      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
-      const grid = snapSize === 64 ? 64 : 32;
-      const snappedX = Math.round(worldX / grid) * grid;
-      const snappedY = Math.round(worldY / grid) * grid;
-      setGhost({ blockId: selectedBlock.id, x: snappedX, y: snappedY, size: selectedBlock.size, alpha: 0.55 });
+      lastPointerRef.current = { x: clientX, y: clientY, ok: true };
+      updateGhostFromClient(clientX, clientY);
       if (placingRef.current) {
         placeFromEvent(e);
       }
     };
     const onLeave = () => {
+      lastPointerRef.current = { x: null, y: null, ok: false };
+      lastPlaceCellRef.current = { x: null, y: null };
       setGhost(null);
       placingRef.current = false;
     };
@@ -475,7 +557,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       el.removeEventListener('touchend', onLeave);
       el.removeEventListener('touchcancel', onLeave);
     };
-  }, [selectedBlock, computeWorldFromClient, snapSize, isDev, placeFromEvent]);
+  }, [selectedBlock, isDev, placeFromEvent, updateGhostFromClient]);
 
   return (
     <div className="game-area">

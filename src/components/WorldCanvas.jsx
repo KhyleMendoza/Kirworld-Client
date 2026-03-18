@@ -25,10 +25,13 @@ const idleGlob = import.meta.glob('../character/breathing-idle/*/*.png', { eager
 
 const DIRECTIONS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
 const DEFAULT_DIR = 'south';
-const WORLD_WIDTH = 3200;
-const WORLD_HEIGHT = 3200;
+const WORLD_TILE_SIZE = 32;
+const WORLD_TILES_X = 500;
+const WORLD_TILES_Y = 500;
+const WORLD_WIDTH = WORLD_TILES_X * WORLD_TILE_SIZE;
+const WORLD_HEIGHT = WORLD_TILES_Y * WORLD_TILE_SIZE;
 const PLAYER_SIZE = 48;
-const GRID_SIZE = 32;
+const GRID_SIZE = WORLD_TILE_SIZE;
 const WALK_FRAME_MS = 90;
 const WALK_FRAMES = 6;
 const IDLE_FRAME_MS = 150;
@@ -135,8 +138,6 @@ export default function WorldCanvas({
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
-  const bgCanvasRef = useRef(null);
-  const bgGridCanvasRef = useRef(null);
   const blockCacheRef = useRef(new Map());
   const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, chatBubbles: [] });
   propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, chatBubbles };
@@ -200,43 +201,6 @@ export default function WorldCanvas({
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    if (!bgCanvasRef.current || !bgGridCanvasRef.current) {
-      const baseCanvas = document.createElement('canvas');
-      baseCanvas.width = WORLD_WIDTH;
-      baseCanvas.height = WORLD_HEIGHT;
-      const baseCtx = baseCanvas.getContext('2d');
-      if (baseCtx) {
-        baseCtx.imageSmoothingEnabled = false;
-        baseCtx.fillStyle = '#0a2647';
-        baseCtx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-      }
-      const gridCanvas = document.createElement('canvas');
-      gridCanvas.width = WORLD_WIDTH;
-      gridCanvas.height = WORLD_HEIGHT;
-      const gridCtx = gridCanvas.getContext('2d');
-      if (gridCtx) {
-        gridCtx.imageSmoothingEnabled = false;
-        gridCtx.drawImage(baseCanvas, 0, 0);
-        const g = GRID_SIZE;
-        gridCtx.strokeStyle = 'rgba(255,255,255,0.04)';
-        gridCtx.lineWidth = 1;
-        for (let x = 0; x <= WORLD_WIDTH; x += g) {
-          gridCtx.beginPath();
-          gridCtx.moveTo(x, 0);
-          gridCtx.lineTo(x, WORLD_HEIGHT);
-          gridCtx.stroke();
-        }
-        for (let y = 0; y <= WORLD_HEIGHT; y += g) {
-          gridCtx.beginPath();
-          gridCtx.moveTo(0, y);
-          gridCtx.lineTo(WORLD_WIDTH, y);
-          gridCtx.stroke();
-        }
-      }
-      bgCanvasRef.current = baseCanvas;
-      bgGridCanvasRef.current = gridCanvas;
-    }
-
     function draw() {
       const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, chatBubbles: bubbles } = propsRef.current;
       const dprNow = Math.min(window.devicePixelRatio || 1, 2);
@@ -255,6 +219,13 @@ export default function WorldCanvas({
       const oySnap = Math.round(oy);
       const blockScale = scaleSnap * dprNow;
       const blockSizePx = Math.round(GRID_SIZE * blockScale);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0a2647';
+      ctx.fillRect(0, 0, w, h);
+
       ctx.save();
 
       ctx.translate(Math.round(w / 2), Math.round(h / 2));
@@ -263,11 +234,6 @@ export default function WorldCanvas({
 
       ctx.imageSmoothingEnabled = false;
       ctx.imageSmoothingQuality = 'low';
-
-      const bgCanvas = showGridNow ? bgGridCanvasRef.current : bgCanvasRef.current;
-      if (bgCanvas) {
-        ctx.drawImage(bgCanvas, 0, 0);
-      }
 
       const byId = new Map();
       for (const b of blockDefs || []) byId.set(b.id, b);
@@ -317,6 +283,64 @@ export default function WorldCanvas({
           ctx.save();
           ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? ghostBlock.alpha : 0.5;
           ctx.drawImage(bmp, Math.round(ghostBlock.x), Math.round(ghostBlock.y), ghostBlock.size, ghostBlock.size);
+          ctx.restore();
+        }
+      }
+
+      if (showGridNow && blockScale > 0.0001) {
+        const g = GRID_SIZE;
+        const halfW = w / 2;
+        const halfH = h / 2;
+        const leftWorld = oxSnap - halfW / blockScale;
+        const rightWorld = oxSnap + halfW / blockScale;
+        const topWorld = oySnap - halfH / blockScale;
+        const bottomWorld = oySnap + halfH / blockScale;
+
+        const clampedLeft = Math.max(0, leftWorld);
+        const clampedRight = Math.min(WORLD_WIDTH, rightWorld);
+        const clampedTop = Math.max(0, topWorld);
+        const clampedBottom = Math.min(WORLD_HEIGHT, bottomWorld);
+
+        const startX = Math.max(g, Math.ceil(clampedLeft / g) * g);
+        const startY = Math.max(g, Math.ceil(clampedTop / g) * g);
+        const endX = Math.min(WORLD_WIDTH - g, Math.floor(clampedRight / g) * g);
+        const endY = Math.min(WORLD_HEIGHT - g, Math.floor(clampedBottom / g) * g);
+
+        if (!(endX < startX || endY < startY)) {
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.imageSmoothingEnabled = false;
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+          ctx.lineWidth = 1;
+
+          const worldLeftPx = (0 - oxSnap) * blockScale + halfW;
+          const worldRightPx = (WORLD_WIDTH - oxSnap) * blockScale + halfW;
+          const worldTopPx = (0 - oySnap) * blockScale + halfH;
+          const worldBottomPx = (WORLD_HEIGHT - oySnap) * blockScale + halfH;
+          const clipX = Math.round(Math.min(worldLeftPx, worldRightPx));
+          const clipY = Math.round(Math.min(worldTopPx, worldBottomPx));
+          const clipW = Math.round(Math.abs(worldRightPx - worldLeftPx));
+          const clipH = Math.round(Math.abs(worldBottomPx - worldTopPx));
+          ctx.beginPath();
+          ctx.rect(clipX, clipY, clipW, clipH);
+          ctx.clip();
+
+          ctx.beginPath();
+          for (let wx = startX; wx <= endX; wx += g) {
+            const sx = Math.round((wx - oxSnap) * blockScale + halfW);
+            ctx.moveTo(sx + 0.5, 0);
+            ctx.lineTo(sx + 0.5, h);
+          }
+          for (let wy = startY; wy <= endY; wy += g) {
+            const sy = Math.round((wy - oySnap) * blockScale + halfH);
+            ctx.moveTo(0, sy + 0.5);
+            ctx.lineTo(w, sy + 0.5);
+          }
+          ctx.stroke();
+
+          const borderW = Math.max(0, clipW - 1);
+          const borderH = Math.max(0, clipH - 1);
+          ctx.strokeRect(clipX + 0.5, clipY + 0.5, borderW, borderH);
           ctx.restore();
         }
       }

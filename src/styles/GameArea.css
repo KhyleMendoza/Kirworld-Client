@@ -90,7 +90,6 @@
   color: #ff6b6b;
 }
 
-/* Player – size set inline from zoom; integer position for sharp pixels */
 .player {
   position: absolute;
   left: 0;
@@ -126,7 +125,6 @@
   image-rendering: crisp-edges;
 }
 
-/* Disconnected overlay */
 .character-loading-overlay {
   position: fixed;
   inset: 0;
