@@ -70,6 +70,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const lastPlaceCellRef = useRef({ x: null, y: null });
   const [ghost, setGhost] = useState(null);
   const [chatBubbles, setChatBubbles] = useState([]);
+  const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
 
   useEffect(() => {
@@ -121,9 +122,10 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         const prev = lastPosRef.current[p.id];
         const dx = prev != null ? p.x - prev.x : 0;
         const dy = prev != null ? p.y - prev.y : 0;
-        const dir = directionFromDxDy(dx, dy);
+        const serverDir = typeof p.dir === 'string' ? p.dir : null;
+        const dir = serverDir || directionFromDxDy(dx, dy);
         if (dir) otherDirectionsRef.current[p.id] = dir;
-        if (dx !== 0 || dy !== 0) {
+        if (p.moving || dx !== 0 || dy !== 0) {
           otherMovingUntilRef.current[p.id] = now + 220;
           otherLastMoveTimeRef.current[p.id] = now;
         }
@@ -224,9 +226,16 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       const dy = (k.s ? 1 : 0) - (k.w ? 1 : 0);
       if (dx !== 0 || dy !== 0) {
         if (socket?.connected) socket.emit('move', { dx, dy });
+        lastMoveSentRef.current = { dx, dy };
         const dir = directionFromDxDy(dx, dy);
         if (dir) myLastDirRef.current = dir;
         myLastMoveTimeRef.current = Date.now();
+        return;
+      }
+      const last = lastMoveSentRef.current;
+      if ((last.dx !== 0 || last.dy !== 0) && socket?.connected) {
+        socket.emit('move', { dx: 0, dy: 0 });
+        lastMoveSentRef.current = { dx: 0, dy: 0 };
       }
     }, SEND_RATE_MS);
     return () => {
@@ -386,6 +395,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       id: p.id,
       name: typeof p.name === 'string' ? p.name : 'Player',
       dev: !!p.dev,
+      showHitbox: !!p.showHitbox,
       x: Math.round(Number(x)),
       y: Math.round(Number(y)),
       direction: isMe ? myLastDirRef.current : (otherDirectionsRef.current[p.id] || 'south'),

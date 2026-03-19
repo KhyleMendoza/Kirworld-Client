@@ -355,6 +355,19 @@ export default function WorldCanvas({
           ctx.drawImage(img, px, py, size, size);
         }
 
+        if (p?.showHitbox && p.id === currentMyId) {
+          const inv = 1 / (scaleSnap * dprNow);
+          const hitW = 20;
+          const hitH = 31;
+          const hitX = px + Math.round((size - hitW) / 2);
+          const hitY = py + 12;
+          ctx.save();
+          ctx.lineWidth = inv;
+          ctx.strokeStyle = 'rgba(0,255,255,0.9)';
+          ctx.strokeRect(hitX, hitY, hitW, hitH);
+          ctx.restore();
+        }
+
         ctx.font = '10px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
