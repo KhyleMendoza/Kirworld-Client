@@ -70,6 +70,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const lastPlaceCellRef = useRef({ x: null, y: null });
   const [ghost, setGhost] = useState(null);
   const [chatBubbles, setChatBubbles] = useState([]);
+  const [pullOverlay, setPullOverlay] = useState(null);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -188,6 +189,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
     });
 
+    socket.on('pulled', ({ byName }) => {
+      const by = typeof byName === 'string' && byName.trim() ? byName.trim() : 'someone';
+      setPullOverlay({ text: `You have been pulled by ${by}.`, key: `${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    });
+
     if (socket.connected) socket.emit('join', payload);
 
     return () => {
@@ -195,6 +201,12 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
     };
   }, [playerName, serverUrl]);
+
+  useEffect(() => {
+    if (!pullOverlay) return;
+    const t = setTimeout(() => setPullOverlay(null), 3500);
+    return () => clearTimeout(t);
+  }, [pullOverlay]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -577,6 +589,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           <div className="character-loading-modal">
             <p className="character-loading-text">Entering world…</p>
           </div>
+        </div>
+      )}
+      {pullOverlay && (
+        <div className="pull-overlay" aria-live="polite">
+          <div className="pull-modal">{pullOverlay.text}</div>
         </div>
       )}
       <div
