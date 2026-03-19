@@ -354,6 +354,7 @@ export default function WorldCanvas({
         if (img) {
           ctx.drawImage(img, px, py, size, size);
         }
+
         ctx.font = '10px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
