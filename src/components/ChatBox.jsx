@@ -30,7 +30,8 @@ export default function ChatBox({ messages, onSend, onFind, myId, playerCount = 
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
-    if (trimmed.toLowerCase().startsWith('/find')) {
+    const lower = trimmed.toLowerCase();
+    if (/^\/find(\s|$)/.test(lower)) {
       onFind?.();
       setInput('');
       return;
