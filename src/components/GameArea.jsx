@@ -145,8 +145,14 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       if (!msg.system && msg.id && typeof msg.text === 'string' && msg.text.trim()) {
         const now = Date.now();
         const text = msg.text.trim();
+        const color = typeof msg.color === 'string' ? msg.color : '#e5e7eb';
+        const segments = Array.isArray(msg.segments)
+          ? msg.segments
+              .map((s) => ({ text: String(s?.text || ''), color: typeof s?.color === 'string' ? s.color : color }))
+              .filter((s) => s.text.length > 0)
+          : [];
         setChatBubbles((prev) => {
-          const next = [...prev, { key: `${msg.id}-${now}`, playerId: msg.id, text, createdAt: now }];
+          const next = [...prev, { key: `${msg.id}-${now}`, playerId: msg.id, text, color, segments, createdAt: now }];
           const grouped = new Map();
           for (const b of next) {
             if (!b.playerId) continue;

@@ -92,7 +92,17 @@ export default function ChatBox({ messages, onSend, onFind, myId, playerCount = 
               ) : (
                 <>
                   <span className={`chatbox-name ${msg.dev ? 'chatbox-name--dev' : ''}`}>{typeof msg.name === 'string' ? msg.name : 'Player'}:</span>{' '}
-                  <span className="chatbox-text">{msg.text}</span>
+                  {Array.isArray(msg.segments) && msg.segments.length > 0 ? (
+                    <span className="chatbox-text">
+                      {msg.segments.map((seg, segIdx) => (
+                        <span key={`${msg.id}-${i}-seg-${segIdx}`} style={typeof seg?.color === 'string' ? { color: seg.color } : undefined}>
+                          {String(seg?.text || '')}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="chatbox-text" style={typeof msg.color === 'string' ? { color: msg.color } : undefined}>{msg.text}</span>
+                  )}
                 </>
               )}
             </li>

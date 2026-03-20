@@ -250,6 +250,52 @@ export default function WorldCanvas({
         bubblesByPlayer.set(b.playerId, arr);
       }
 
+      const wrapBubbleSegments = (ctx2d, rawSegments, maxBubbleWidth) => {
+        const flat = [];
+        for (const seg of rawSegments || []) {
+          const colorSeg = typeof seg?.color === 'string' ? seg.color : '#e5e7eb';
+          const textSeg = String(seg?.text || '');
+          for (let i = 0; i < textSeg.length; i++) flat.push({ ch: textSeg[i], color: colorSeg });
+        }
+        if (flat.length === 0) return [];
+
+        const lines = [];
+        let lineChars = [];
+        let lineText = '';
+        for (const part of flat) {
+          const probe = lineText + part.ch;
+          if (lineText.length === 0 || ctx2d.measureText(probe).width <= maxBubbleWidth) {
+            lineChars.push(part);
+            lineText = probe;
+          } else {
+            lines.push(lineChars);
+            lineChars = [part];
+            lineText = part.ch;
+          }
+        }
+        if (lineChars.length) lines.push(lineChars);
+
+        return lines.map((line) => {
+          const runs = [];
+          let curColor = null;
+          let curText = '';
+          for (const it of line) {
+            if (curColor == null || it.color === curColor) {
+              curColor = it.color;
+              curText += it.ch;
+            } else {
+              runs.push({ text: curText, color: curColor });
+              curColor = it.color;
+              curText = it.ch;
+            }
+          }
+          if (curText) runs.push({ text: curText, color: curColor });
+          const lineTextNow = runs.map((r) => r.text).join('');
+          const widthNow = ctx2d.measureText(lineTextNow).width;
+          return { runs, width: widthNow };
+        });
+      };
+
       const layerIndex = (cat) => {
         if (cat === 'wallpaper') return 0;
         if (cat === 'decoration') return 1;
@@ -520,36 +566,13 @@ export default function WorldCanvas({
             if (age >= 4000) continue;
             const life = age < 2500 ? 1 : 1 - (age - 2500) / 1500;
             if (life <= 0) continue;
-            const raw = String(bubble.text || '').trim();
-            if (!raw) continue;
-            const words = raw.split(/\s+/);
-            const lines = [];
-            let current = '';
-            for (const word of words) {
-              const testLine = current ? current + ' ' + word : word;
-              if (ctx.measureText(testLine).width <= maxBubbleWidth) {
-                current = testLine;
-                continue;
-              }
-              if (current) {
-                lines.push(current);
-                current = '';
-              }
-              if (ctx.measureText(word).width <= maxBubbleWidth) {
-                current = word;
-              } else {
-                let start = 0;
-                while (start < word.length) {
-                  let end = start + 1;
-                  while (end <= word.length && ctx.measureText(word.slice(start, end)).width <= maxBubbleWidth) end++;
-                  lines.push(word.slice(start, end - 1));
-                  start = end - 1;
-                }
-              }
-            }
-            if (current) lines.push(current);
+            const fallbackText = String(bubble.text || '').trim();
+            const segs = Array.isArray(bubble.segments) && bubble.segments.length > 0
+              ? bubble.segments
+              : [{ text: fallbackText, color: bubble.color || '#e5e7eb' }];
+            const lines = wrapBubbleSegments(ctx, segs, maxBubbleWidth);
             if (lines.length === 0) continue;
-            const boxWidth = Math.min(maxBubbleWidth, Math.max(...lines.map((l) => ctx.measureText(l).width))) + paddingX * 2;
+            const boxWidth = Math.min(maxBubbleWidth, Math.max(...lines.map((l) => l.width))) + paddingX * 2;
             const boxHeight = lines.length * lineHeight + paddingY * 2;
             bubbleData.push({ bubble, lines, boxWidth, boxHeight, life });
           }
@@ -577,11 +600,16 @@ export default function WorldCanvas({
             ctx.strokeStyle = 'rgba(148,163,184,0.8)';
             ctx.lineWidth = 1;
             ctx.stroke();
-            ctx.fillStyle = '#e5e7eb';
-            ctx.textAlign = 'center';
+            ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             lines.forEach((line, j) => {
-              ctx.fillText(line, nameX, boxY + paddingY + lineHeight / 2 + j * lineHeight);
+              let cx = nameX - line.width / 2;
+              const cy = boxY + paddingY + lineHeight / 2 + j * lineHeight;
+              line.runs.forEach((run) => {
+                ctx.fillStyle = run.color || '#e5e7eb';
+                ctx.fillText(run.text, cx, cy);
+                cx += ctx.measureText(run.text).width;
+              });
             });
             ctx.restore();
             bubbleBottom = boxY - 4;
