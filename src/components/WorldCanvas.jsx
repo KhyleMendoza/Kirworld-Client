@@ -363,7 +363,6 @@ export default function WorldCanvas({
             const labelEndX = Math.min(WORLD_WIDTH - g, Math.floor(clampedRight / g) * g);
             const labelEndY = Math.min(WORLD_HEIGHT - g, Math.floor(clampedBottom / g) * g);
             const hideCoordsWhenMaxZoomOut = z <= 0.45;
-            const showTwoLineCoords = z <= 0.8;
             for (let wy = labelStartY; wy <= labelEndY; wy += g) {
               for (let wx = labelStartX; wx <= labelEndX; wx += g) {
                 if (hideCoordsWhenMaxZoomOut) continue;
@@ -371,12 +370,24 @@ export default function WorldCanvas({
                 const tileY = Math.floor(wy / g);
                 const sx = Math.round((wx - oxSnap) * blockScale + halfW + tilePx / 2);
                 const sy = Math.round((wy - oySnap) * blockScale + halfH + tilePx / 2);
-                if (showTwoLineCoords) {
-                  const lineOffset = Math.max(1, Math.round(labelFontPx * 0.55));
-                  ctx.fillText(`${tileX},`, sx, sy - lineOffset);
-                  ctx.fillText(`${tileY}`, sx, sy + lineOffset);
-                } else {
-                  ctx.fillText(`${tileX},${tileY}`, sx, sy);
+                const tileIdText = String(tileY * WORLD_TILES_X + tileX + 1);
+                const maxTextWidth = Math.max(6, tilePx - 6);
+                const lines = [];
+                let current = '';
+                for (const ch of tileIdText) {
+                  const probe = current + ch;
+                  if (ctx.measureText(probe).width <= maxTextWidth || current.length === 0) {
+                    current = probe;
+                  } else {
+                    lines.push(current);
+                    current = ch;
+                  }
+                }
+                if (current) lines.push(current);
+                const lineHeight = Math.max(6, Math.round(labelFontPx * 1.05));
+                const startY = sy - ((lines.length - 1) * lineHeight) / 2;
+                for (let i = 0; i < lines.length; i++) {
+                  ctx.fillText(lines[i], sx, startY + i * lineHeight);
                 }
               }
             }
