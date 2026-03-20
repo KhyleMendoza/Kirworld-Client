@@ -133,14 +133,16 @@ export default function WorldCanvas({
   placedBlocks = [],
   ghost = null,
   showGrid = false,
+  forceShowGrid = false,
+  showGridCoords = false,
   chatBubbles = [],
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, chatBubbles: [] });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, chatBubbles };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [] });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
@@ -202,7 +204,7 @@ export default function WorldCanvas({
     if (!ctx) return;
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, chatBubbles: bubbles } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles } = propsRef.current;
       const dprNow = Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
@@ -287,7 +289,8 @@ export default function WorldCanvas({
         }
       }
 
-      if (showGridNow && blockScale > 0.0001) {
+      const shouldDrawGrid = (showGridNow || forceShowGridNow) && blockScale > 0.0001;
+      if (shouldDrawGrid) {
         const g = GRID_SIZE;
         const halfW = w / 2;
         const halfH = h / 2;
@@ -341,6 +344,28 @@ export default function WorldCanvas({
           const borderW = Math.max(0, clipW - 1);
           const borderH = Math.max(0, clipH - 1);
           ctx.strokeRect(clipX + 0.5, clipY + 0.5, borderW, borderH);
+
+          if (showGridCoordsNow) {
+            const tilePx = g * blockScale;
+            const labelFontPx = Math.max(6, Math.min(10, Math.round(tilePx * 0.2)));
+            ctx.fillStyle = 'rgba(226,232,240,0.42)';
+            ctx.font = `${labelFontPx}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const labelStartX = Math.max(0, Math.floor(clampedLeft / g) * g);
+            const labelStartY = Math.max(0, Math.floor(clampedTop / g) * g);
+            const labelEndX = Math.min(WORLD_WIDTH - g, Math.floor(clampedRight / g) * g);
+            const labelEndY = Math.min(WORLD_HEIGHT - g, Math.floor(clampedBottom / g) * g);
+            for (let wy = labelStartY; wy <= labelEndY; wy += g) {
+              for (let wx = labelStartX; wx <= labelEndX; wx += g) {
+                const tileX = Math.floor(wx / g);
+                const tileY = Math.floor(wy / g);
+                const sx = Math.round((wx - oxSnap) * blockScale + halfW + tilePx / 2);
+                const sy = Math.round((wy - oySnap) * blockScale + halfH + tilePx / 2);
+                ctx.fillText(`${tileX},${tileY}`, sx, sy);
+              }
+            }
+          }
           ctx.restore();
         }
       }

@@ -396,6 +396,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       name: typeof p.name === 'string' ? p.name : 'Player',
       dev: !!p.dev,
       showHitbox: !!p.showHitbox,
+      showGridDebug: !!p.showGridDebug,
       x: Math.round(Number(x)),
       y: Math.round(Number(y)),
       direction: isMe ? myLastDirRef.current : (otherDirectionsRef.current[p.id] || 'south'),
@@ -410,6 +411,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
   const selectedBlockId = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+  const myCanvasPlayer = canvasDisplayList.find((p) => p.id === myId);
+  const debugShowGrid = !!myCanvasPlayer?.showGridDebug;
   const showGrid = !!selectedBlock;
 
   const handleOpenFind = useCallback(() => {
@@ -644,6 +647,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           placedBlocks={placedBlocks}
           ghost={ghost}
           showGrid={showGrid}
+          forceShowGrid={debugShowGrid}
+          showGridCoords={debugShowGrid}
           chatBubbles={chatBubbles}
         />
       </div>
