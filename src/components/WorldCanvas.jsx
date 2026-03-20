@@ -356,13 +356,22 @@ export default function WorldCanvas({
             const labelStartY = Math.max(0, Math.floor(clampedTop / g) * g);
             const labelEndX = Math.min(WORLD_WIDTH - g, Math.floor(clampedRight / g) * g);
             const labelEndY = Math.min(WORLD_HEIGHT - g, Math.floor(clampedBottom / g) * g);
+            const hideCoordsWhenMaxZoomOut = z <= 0.45;
+            const showTwoLineCoords = z <= 0.8;
             for (let wy = labelStartY; wy <= labelEndY; wy += g) {
               for (let wx = labelStartX; wx <= labelEndX; wx += g) {
+                if (hideCoordsWhenMaxZoomOut) continue;
                 const tileX = Math.floor(wx / g);
                 const tileY = Math.floor(wy / g);
                 const sx = Math.round((wx - oxSnap) * blockScale + halfW + tilePx / 2);
                 const sy = Math.round((wy - oySnap) * blockScale + halfH + tilePx / 2);
-                ctx.fillText(`${tileX},${tileY}`, sx, sy);
+                if (showTwoLineCoords) {
+                  const lineOffset = Math.max(1, Math.round(labelFontPx * 0.55));
+                  ctx.fillText(`${tileX},`, sx, sy - lineOffset);
+                  ctx.fillText(`${tileY}`, sx, sy + lineOffset);
+                } else {
+                  ctx.fillText(`${tileX},${tileY}`, sx, sy);
+                }
               }
             }
           }
