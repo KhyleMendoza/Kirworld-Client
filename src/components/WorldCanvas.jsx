@@ -136,13 +136,14 @@ export default function WorldCanvas({
   forceShowGrid = false,
   showGridCoords = false,
   chatBubbles = [],
+  whoPulseUntil = 0,
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [] });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0 });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles, whoPulseUntil };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
@@ -204,7 +205,7 @@ export default function WorldCanvas({
     if (!ctx) return;
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles, whoPulseUntil: whoPulseUntilNow } = propsRef.current;
       const dprNow = Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
@@ -277,6 +278,11 @@ export default function WorldCanvas({
         ctx.drawImage(bmp, 0, 0, pb.size, pb.size, Math.round(sx), Math.round(sy), blockSizePx, blockSizePx);
         ctx.restore();
       }
+
+          const showWhoNamesNow = typeof whoPulseUntilNow === 'number' && whoPulseUntilNow > now;
+          const whoPulseTotalMs = 4000;
+          const whoPulseAgeMs = showWhoNamesNow ? Math.max(0, whoPulseUntilNow - now) : 0;
+          const whoPulseAlpha = showWhoNamesNow ? Math.max(0, Math.min(1, whoPulseAgeMs / whoPulseTotalMs)) : 0;
 
       if (ghostBlock?.blockId) {
         const def = byId.get(ghostBlock.blockId);
@@ -409,7 +415,82 @@ export default function WorldCanvas({
         const nameX = Math.round(px + size / 2);
         const nameY = Math.round(py - 6);
         const nameStr = typeof p.name === 'string' ? p.name : 'Player';
-        ctx.fillText(nameStr, nameX, nameY);
+        if (!showWhoNamesNow || p.id === currentMyId) {
+          ctx.fillText(nameStr, nameX, nameY);
+        } else {
+          const anchorX = (nameX - oxSnap) * blockScale + centerX;
+          const anchorY = (nameY - oySnap) * blockScale + centerY;
+          const margin = 18;
+          let bx = anchorX;
+          let by = anchorY;
+          const onScreen = bx >= margin && bx <= w - margin && by >= margin && by <= h - margin;
+          if (!onScreen) {
+            const dx = bx - centerX;
+            const dy = by - centerY;
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+            if (absDx < 0.001 && absDy < 0.001) {
+              bx = centerX;
+              by = centerY;
+            } else {
+              let t = Infinity;
+              if (dx > 0) t = Math.min(t, (w - margin - centerX) / dx);
+              else if (dx < 0) t = Math.min(t, (margin - centerX) / dx);
+
+              if (dy > 0) t = Math.min(t, (h - margin - centerY) / dy);
+              else if (dy < 0) t = Math.min(t, (margin - centerY) / dy);
+
+              if (Number.isFinite(t) && t > 0) {
+                bx = centerX + dx * t;
+                by = centerY + dy * t;
+              }
+
+              bx = Math.max(margin, Math.min(w - margin, bx));
+              by = Math.max(margin, Math.min(h - margin, by));
+            }
+          }
+
+          const fontSize = 12;
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.imageSmoothingEnabled = false;
+          ctx.font = `${fontSize}px system-ui, sans-serif`;
+          const textW = ctx.measureText(nameStr).width;
+          const padX = 7;
+          const padY = 8;
+          const bw = textW + padX * 2;
+          const bh = fontSize + padY * 2;
+          const x0 = bx - bw / 2;
+          const y0 = by - bh / 2;
+
+          const strokeColor = p.dev ? '#facc15' : (p.id === currentMyId ? '#ff8a9e' : 'rgba(148,163,184,0.8)');
+          ctx.globalAlpha = whoPulseAlpha;
+          ctx.fillStyle = 'rgba(15,23,42,0.90)';
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1;
+
+          const r = 6; 
+          ctx.beginPath();
+          ctx.moveTo(x0 + r, y0);
+          ctx.lineTo(x0 + bw - r, y0);
+          ctx.quadraticCurveTo(x0 + bw, y0, x0 + bw, y0 + r);
+          ctx.lineTo(x0 + bw, y0 + bh - r);
+          ctx.quadraticCurveTo(x0 + bw, y0 + bh, x0 + bw - r, y0 + bh);
+          ctx.lineTo(x0 + r, y0 + bh);
+          ctx.quadraticCurveTo(x0, y0 + bh, x0, y0 + bh - r);
+          ctx.lineTo(x0, y0 + r);
+          ctx.quadraticCurveTo(x0, y0, x0 + r, y0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.globalAlpha = whoPulseAlpha;
+          ctx.fillStyle = '#e5e7eb';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(nameStr, bx, by);
+          ctx.restore();
+        }
 
         const bubblesForPlayer = bubblesByPlayer.get(p.id);
         if (bubblesForPlayer && bubblesForPlayer.length) {

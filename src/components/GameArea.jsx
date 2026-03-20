@@ -72,6 +72,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [chatBubbles, setChatBubbles] = useState([]);
   const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
+  const [whoPulseUntil, setWhoPulseUntil] = useState(0);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -649,6 +650,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           showGrid={showGrid}
           forceShowGrid={debugShowGrid}
           showGridCoords={debugShowGrid}
+        whoPulseUntil={whoPulseUntil}
           chatBubbles={chatBubbles}
         />
       </div>
@@ -686,7 +688,13 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       />
       <ChatBox
         messages={messages}
-        onSend={(text) => socketRef.current?.emit('chat', text)}
+        onSend={(text) => {
+          const t = String(text || '').trim();
+          if (t.toLowerCase() === '/who') {
+            setWhoPulseUntil(Date.now() + 4000);
+          }
+          socketRef.current?.emit('chat', text);
+        }}
         onFind={handleOpenFind}
         myId={myIdRef.current}
         playerCount={players.length}
