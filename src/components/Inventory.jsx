@@ -5,7 +5,6 @@ import '../styles/Inventory.css';
 const SLOT_COUNT = 30;
 const HOTBAR_COUNT = 5;
 
-// Index 0 is transparent; visible colors start at 1.
 const BASE_PALETTE = [
   '#000000',
   '#ffffff',

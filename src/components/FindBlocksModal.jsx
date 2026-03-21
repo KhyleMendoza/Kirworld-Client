@@ -117,7 +117,6 @@ export default function FindBlocksModal({
     for (let i = 0; i < blockSize * blockSize; i++) {
       const idx = decoded[i] | 0;
       if (idx === 0) {
-        // transparent
         img.data[i * 4 + 3] = 0;
         continue;
       }
@@ -170,7 +169,7 @@ export default function FindBlocksModal({
       for (let x = 0; x < size; x++) {
         const idx = y * size + x;
         const colorIndex = pixels[idx] | 0;
-        if (colorIndex === 0) continue; // transparent / empty
+        if (colorIndex === 0) continue;
         const c = palette[colorIndex - 1] || '#000000';
         ctx.fillStyle = c;
         ctx.fillRect(x * cell, y * cell, cell, cell);
@@ -469,7 +468,7 @@ export default function FindBlocksModal({
                   aria-label="Transparent"
                 />
                 {palette.map((c, idx) => {
-                  const index = idx + 1; // shift by 1 because 0 is transparent
+                  const index = idx + 1;
                   return (
                     <button
                       key={`${c}-${index}`}
