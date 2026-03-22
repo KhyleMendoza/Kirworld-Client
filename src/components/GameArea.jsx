@@ -1,6 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getSession } from '../lib/authApi';
+import { deleteBlockPngRecord, getBlockPngRecord, putBlockPngRecord } from '../lib/blockPngIdb';
+import {
+  blockContentKey,
+  canvasToPngBlob,
+  loadImageFromBlob,
+  rasterizeBlockToCanvas,
+} from '../utils/blockRaster';
 import WorldCanvas from './WorldCanvas';
 import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
@@ -73,6 +80,58 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
   const [whoPulseUntil, setWhoPulseUntil] = useState(0);
+  const blockPngImagesRef = useRef(new Map());
+
+  useEffect(() => {
+    if (typeof indexedDB === 'undefined') return undefined;
+    let cancelled = false;
+    const list = Array.isArray(blocks) ? blocks : [];
+    const validIds = new Set(list.map((b) => b?.id).filter(Boolean));
+
+    (async () => {
+      for (const id of [...blockPngImagesRef.current.keys()]) {
+        if (!validIds.has(id)) {
+          blockPngImagesRef.current.delete(id);
+          try {
+            await deleteBlockPngRecord(id);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      for (const block of list) {
+        if (!block?.id || !block?.pixels) continue;
+        const contentKey = blockContentKey(block);
+        if (!contentKey) continue;
+        try {
+          const rec = await getBlockPngRecord(block.id);
+          let blob;
+          if (rec && rec.contentKey === contentKey && rec.blob instanceof Blob) {
+            blob = rec.blob;
+          } else {
+            const canvas = rasterizeBlockToCanvas(block);
+            if (!canvas) continue;
+            blob = await canvasToPngBlob(canvas);
+            await putBlockPngRecord({ id: block.id, contentKey, blob });
+          }
+          const prev = blockPngImagesRef.current.get(block.id);
+          if (prev && prev.contentKey === contentKey && prev.img?.complete && prev.img.naturalWidth > 0) {
+            continue;
+          }
+          const img = await loadImageFromBlob(blob);
+          if (cancelled) return;
+          blockPngImagesRef.current.set(block.id, { img, contentKey });
+        } catch {
+          /* fallback: WorldCanvas rasterizes from pixels */
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [blocks]);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -658,6 +717,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           showGridCoords={debugShowGrid}
         whoPulseUntil={whoPulseUntil}
           chatBubbles={chatBubbles}
+          blockPngImagesRef={blockPngImagesRef}
         />
       </div>
       <div className="player-card">

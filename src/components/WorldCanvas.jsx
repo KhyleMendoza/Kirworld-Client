@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { decodePixelsFromBase64 } from '../utils/pixelCodec';
+import { blockContentKey, rasterizeBlockToCanvas } from '../utils/blockRaster';
 import north from '../character/rotations/north.png';
 import northEast from '../character/rotations/north-east.png';
 import east from '../character/rotations/east.png';
@@ -36,38 +36,6 @@ const WALK_FRAME_MS = 90;
 const WALK_FRAMES = 6;
 const IDLE_FRAME_MS = 150;
 const IDLE_FRAMES = 4;
-const BASE_BLOCK_COLORS = [
-  '#000000',
-  '#ffffff',
-  '#94a3b8',
-  '#475569',
-  '#0f172a',
-  '#3b82f6',
-  '#22c55e',
-  '#eab308',
-  '#ef4444',
-  '#a855f7',
-  '#14b8a6',
-  '#f97316',
-  '#e5e7eb',
-  '#d1d5db',
-  '#fef3c7',
-  '#fee2e2',
-  '#e0f2fe',
-  '#dcfce7',
-  '#1d4ed8',
-  '#15803d',
-  '#b45309',
-  '#b91c1c',
-  '#7e22ce',
-  '#0f766e',
-  '#c2410c',
-  '#111827',
-  '#020617',
-  '#1e293b',
-  '#4b5563',
-];
-
 function walkUrl(dir, frame) {
   const key = `../character/walk/${dir}/frame_${String(frame).padStart(3, '0')}.png`;
   return walkGlob[key] ?? null;
@@ -137,55 +105,34 @@ export default function WorldCanvas({
   showGridCoords = false,
   chatBubbles = [],
   whoPulseUntil = 0,
+  blockPngImagesRef = null,
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
   const rafRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0 });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles, whoPulseUntil };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0, blockPngImagesRef: null });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles, whoPulseUntil, blockPngImagesRef };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
-    const cacheKey = `${block.id}:${block.size}:${block.pixels.length}:${Array.isArray(block.palette) ? block.palette.join(',') : ''}`;
+    const cacheKey = `${block.id}:${blockContentKey(block)}`;
     const cached = blockCacheRef.current.get(cacheKey);
     if (cached) return cached;
-    const size = block.size === 64 ? 64 : 32;
-    const palette = Array.isArray(block.palette)
-      ? [...BASE_BLOCK_COLORS, ...block.palette]
-      : BASE_BLOCK_COLORS;
-    let decoded;
-    try {
-      decoded = decodePixelsFromBase64(block.pixels);
-    } catch {
-      return null;
-    }
-    if (decoded.length < size * size) return null;
-    const off = document.createElement('canvas');
-    off.width = size;
-    off.height = size;
-    const ctx = off.getContext('2d');
-    if (!ctx) return null;
-    ctx.imageSmoothingEnabled = false;
-    const img = ctx.createImageData(size, size);
-    for (let i = 0; i < size * size; i++) {
-      const idx = decoded[i] | 0;
-      if (idx === 0) {
-        img.data[i * 4 + 3] = 0;
-        continue;
-      }
-      const color = palette[idx - 1] || '#000000';
-      const r = parseInt(color.slice(1, 3), 16);
-      const g = parseInt(color.slice(3, 5), 16);
-      const b = parseInt(color.slice(5, 7), 16);
-      img.data[i * 4 + 0] = r;
-      img.data[i * 4 + 1] = g;
-      img.data[i * 4 + 2] = b;
-      img.data[i * 4 + 3] = 255;
-    }
-    ctx.putImageData(img, 0, 0);
+    const off = rasterizeBlockToCanvas(block);
+    if (!off) return null;
     blockCacheRef.current.set(cacheKey, off);
     return off;
+  }
+
+  function getBlockDrawable(block, pngRef) {
+    if (!block?.id) return null;
+    const entry = pngRef?.current?.get(block.id);
+    const img = entry?.img;
+    if (img && img.complete && img.naturalWidth > 0 && entry.contentKey === blockContentKey(block)) {
+      return img;
+    }
+    return getBlockBitmap(block);
   }
 
   useEffect(() => {
@@ -205,7 +152,7 @@ export default function WorldCanvas({
     if (!ctx) return;
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles, whoPulseUntil: whoPulseUntilNow } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles, whoPulseUntil: whoPulseUntilNow, blockPngImagesRef: pngRefNow } = propsRef.current;
       const dprNow = Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
@@ -314,7 +261,7 @@ export default function WorldCanvas({
       const centerY = Math.round(h / 2);
       for (const pb of orderedPlaced) {
         const def = byId.get(pb.blockId);
-        const bmp = getBlockBitmap(def);
+        const bmp = getBlockDrawable(def, pngRefNow);
         if (!bmp) continue;
         const sx = (pb.x - oxSnap) * blockScale + centerX;
         const sy = (pb.y - oySnap) * blockScale + centerY;
@@ -332,7 +279,7 @@ export default function WorldCanvas({
 
       if (ghostBlock?.blockId) {
         const def = byId.get(ghostBlock.blockId);
-        const bmp = getBlockBitmap(def);
+        const bmp = getBlockDrawable(def, pngRefNow);
         if (bmp) {
           ctx.save();
           ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? ghostBlock.alpha : 0.5;
