@@ -8,8 +8,14 @@ import {
   loadImageFromBlob,
   rasterizeBlockToCanvas,
 } from '../utils/blockRaster';
-import { shouldUseIndexedBlockPngCache } from '../utils/blockPngPreferences';
+import {
+  getEffectivePerformanceMode,
+  hasExplicitPerformancePreference,
+  shouldUseIndexedBlockPngCache,
+  writePerformanceMode,
+} from '../utils/blockPngPreferences';
 import WorldCanvas from './WorldCanvas';
+import GameSettingsModal, { SettingsGearIcon } from './GameSettingsModal';
 import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
 import ChatBox from './ChatBox';
@@ -81,10 +87,23 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
   const [whoPulseUntil, setWhoPulseUntil] = useState(0);
+  const [performanceMode, setPerformanceMode] = useState(() => getEffectivePerformanceMode());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const blockPngImagesRef = useRef(new Map());
 
+  const useBlockPngCache = shouldUseIndexedBlockPngCache(
+    performanceMode,
+    hasExplicitPerformancePreference()
+  );
+
   useEffect(() => {
-    if (typeof indexedDB === 'undefined' || !shouldUseIndexedBlockPngCache()) return undefined;
+    if (!useBlockPngCache) {
+      blockPngImagesRef.current.clear();
+    }
+  }, [useBlockPngCache]);
+
+  useEffect(() => {
+    if (typeof indexedDB === 'undefined' || !useBlockPngCache) return undefined;
     let cancelled = false;
     const list = Array.isArray(blocks) ? blocks : [];
     const validIds = new Set(list.map((b) => b?.id).filter(Boolean));
@@ -95,9 +114,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           blockPngImagesRef.current.delete(id);
           try {
             await deleteBlockPngRecord(id);
-          } catch {
-            /* ignore */
-          }
+          } catch {}
         }
       }
 
@@ -123,16 +140,14 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           const img = await loadImageFromBlob(blob);
           if (cancelled) return;
           blockPngImagesRef.current.set(block.id, { img, contentKey });
-        } catch {
-          /* fallback: WorldCanvas rasterizes from pixels */
-        }
+        } catch {}
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [blocks]);
+  }, [blocks, useBlockPngCache]);
 
   useEffect(() => {
     const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -676,6 +691,24 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           <div className="pull-modal">{pullOverlay.text}</div>
         </div>
       )}
+      <button
+        type="button"
+        className="game-settings-fab"
+        onClick={() => setSettingsOpen(true)}
+        title="Settings"
+        aria-label="Settings"
+      >
+        <SettingsGearIcon />
+      </button>
+      <GameSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        performanceMode={performanceMode}
+        onPerformanceModeChange={(on) => {
+          writePerformanceMode(on);
+          setPerformanceMode(on);
+        }}
+      />
       <div
         className="game-viewport"
         ref={viewportRef}

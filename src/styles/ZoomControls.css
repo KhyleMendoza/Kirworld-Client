@@ -1,6 +1,6 @@
 .zoom-controls {
   position: fixed;
-  top: 24px;
+  top: 80px;
   right: 24px;
   display: flex;
   flex-direction: column;
