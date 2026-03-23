@@ -8,6 +8,7 @@ import {
   loadImageFromBlob,
   rasterizeBlockToCanvas,
 } from '../utils/blockRaster';
+import { shouldUseIndexedBlockPngCache } from '../utils/blockPngPreferences';
 import WorldCanvas from './WorldCanvas';
 import Joystick from './Joystick';
 import ZoomControls from './ZoomControls';
@@ -83,7 +84,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const blockPngImagesRef = useRef(new Map());
 
   useEffect(() => {
-    if (typeof indexedDB === 'undefined') return undefined;
+    if (typeof indexedDB === 'undefined' || !shouldUseIndexedBlockPngCache()) return undefined;
     let cancelled = false;
     const list = Array.isArray(blocks) ? blocks : [];
     const validIds = new Set(list.map((b) => b?.id).filter(Boolean));
