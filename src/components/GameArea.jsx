@@ -87,7 +87,6 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
   const [whoPulseUntil, setWhoPulseUntil] = useState(0);
-  const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [performanceMode, setPerformanceMode] = useState(() => getEffectivePerformanceMode());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const blockPngImagesRef = useRef(new Map());
@@ -285,7 +284,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       socket.disconnect();
       if (sendIntervalRef.current) clearInterval(sendIntervalRef.current);
     };
-  }, [playerName, serverUrl, connectionAttempt]);
+  }, [playerName, serverUrl]);
 
   useEffect(() => {
     if (!pullOverlay) return;
@@ -489,15 +488,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   });
 
   const handleRetryConnection = useCallback(() => {
-    try {
-      socketRef.current?.disconnect();
-    } catch {}
-    myIdRef.current = null;
-    setPlayers([]);
-    setDisplayPlayers([]);
-    setCharacterReady(false);
-    setConnected(false);
-    setConnectionAttempt((n) => n + 1);
+    socketRef.current?.connect();
   }, []);
 
   const selectedBlockId = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
