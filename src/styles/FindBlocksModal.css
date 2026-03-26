@@ -119,6 +119,8 @@
 .find-item-main {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  align-items: flex-start;
   gap: 2px;
   min-width: 0;
 }

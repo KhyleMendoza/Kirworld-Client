@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getSession } from '../lib/authApi';
 import { deleteBlockPngRecord, getBlockPngRecord, putBlockPngRecord } from '../lib/blockPngIdb';
@@ -39,6 +39,8 @@ const ZOOM_STEP = 0.2;
 const IDLE_AFK_MS = 10000;
 const INVENTORY_SLOTS = 30;
 const HOTBAR_SLOTS = 5;
+const REMOVE_TOOL_ID = 'remove_tool';
+const REMOVE_LAYER_ORDER = ['block', 'decoration', 'wallpaper'];
 
 const ROTATION_NAMES = ['west', 'south-west', 'north', 'south-east', 'east', 'north-east', 'south', 'north-west'];
 
@@ -90,6 +92,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [performanceMode, setPerformanceMode] = useState(() => getEffectivePerformanceMode());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const blockPngImagesRef = useRef(new Map());
+  const [removeLayerIndex, setRemoveLayerIndex] = useState(0);
+  const lastRemoveCellRef = useRef({ x: null, y: null, category: null });
 
   const useBlockPngCache = shouldUseIndexedBlockPngCache(
     performanceMode,
@@ -270,6 +274,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     });
     socket.on('blocks:error', ({ message }) => {
       setPlacedBlocks((prev) => prev.filter((p) => !String(p.id).startsWith('opt-')));
+      // If the server rejects a placement/removal, allow the user to retry.
+      lastRemoveCellRef.current = { x: null, y: null, category: null };
       setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
     });
 
@@ -491,11 +497,25 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     socketRef.current?.connect();
   }, []);
 
-  const selectedBlockId = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
+  const selectedHotbarItem = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
+  const isRemoveTool = selectedHotbarItem === REMOVE_TOOL_ID;
+  const selectedBlockId = isRemoveTool ? null : selectedHotbarItem;
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+  const blocksById = useMemo(() => {
+    const map = new Map();
+    (blocks || []).forEach((b) => map.set(b.id, b));
+    return map;
+  }, [blocks]);
   const myCanvasPlayer = canvasDisplayList.find((p) => p.id === myId);
   const debugShowGrid = !!myCanvasPlayer?.showGridDebug;
   const showGrid = !!selectedBlock;
+
+  useEffect(() => {
+    if (isRemoveTool) {
+      setRemoveLayerIndex(0);
+      lastRemoveCellRef.current = { x: null, y: null, category: null };
+    }
+  }, [isRemoveTool]);
 
   const handleOpenFind = useCallback(() => {
     if (!isDev) {
@@ -514,6 +534,25 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   }, []);
 
   const handleAddBlockToInventory = useCallback((blockId) => {
+    if (blockId === REMOVE_TOOL_ID) {
+      setRemoveLayerIndex(0);
+      setHotbar((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        if (current.includes(REMOVE_TOOL_ID)) {
+          setSelectedHotbar(current.indexOf(REMOVE_TOOL_ID));
+          return current;
+        }
+
+        const withoutRemove = current.filter((id) => id !== REMOVE_TOOL_ID);
+        const capacity = Math.max(0, HOTBAR_SLOTS - 1);
+        const nextWithoutRemove = withoutRemove.slice(0, capacity);
+        const next = nextWithoutRemove.concat(REMOVE_TOOL_ID);
+        setSelectedHotbar(next.indexOf(REMOVE_TOOL_ID));
+        return next;
+      });
+      return;
+    }
+
     setInventorySlots((prev) => {
       const alreadyHas = prev.some((item) => item?.type === 'block' && item.blockId === blockId);
       if (alreadyHas) return prev;
@@ -523,25 +562,33 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       next[idx] = { type: 'block', blockId };
       return next;
     });
+
     setHotbar((prev) => {
-      if (prev.includes(blockId)) return prev;
-      if (prev.length >= HOTBAR_SLOTS) {
-        const without = prev.filter((id) => id !== blockId);
-        const next = [blockId, ...without].slice(0, HOTBAR_SLOTS);
-        setSelectedHotbar(0);
-        return next;
-      }
-      const next = prev.concat(blockId);
-      setSelectedHotbar(next.length - 1);
+      const current = Array.isArray(prev) ? prev : [];
+      if (current.includes(blockId)) return current;
+
+      const hasRemove = current.includes(REMOVE_TOOL_ID);
+      const withoutRemove = current.filter((id) => id !== REMOVE_TOOL_ID);
+      const capacity = Math.max(0, HOTBAR_SLOTS - (hasRemove ? 1 : 0));
+      const nextWithoutRemove = [blockId, ...withoutRemove].slice(0, capacity);
+      const next = hasRemove ? nextWithoutRemove.concat(REMOVE_TOOL_ID) : nextWithoutRemove;
+
+      setSelectedHotbar(next.indexOf(blockId));
       return next;
     });
   }, []);
 
   const handleAssignHotbar = useCallback((blockId) => {
     setHotbar((prev) => {
-      const without = prev.filter((id) => id !== blockId);
-      const candidate = blockId;
-      const next = [candidate, ...without].slice(0, HOTBAR_SLOTS);
+      const current = Array.isArray(prev) ? prev : [];
+      const hasRemove = current.includes(REMOVE_TOOL_ID);
+      const withoutRemove = hasRemove ? current.filter((id) => id !== REMOVE_TOOL_ID) : current.slice();
+
+      const withoutCandidate = withoutRemove.filter((id) => id !== blockId);
+      const capacity = Math.max(0, HOTBAR_SLOTS - (hasRemove ? 1 : 0));
+      const nextWithoutRemove = [blockId, ...withoutCandidate].slice(0, capacity);
+      const next = hasRemove ? nextWithoutRemove.concat(REMOVE_TOOL_ID) : nextWithoutRemove;
+
       setSelectedHotbar(0);
       return next;
     });
@@ -572,6 +619,19 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, selectedBlock.size);
     setGhost({ blockId: selectedBlock.id, x: snappedX, y: snappedY, size: selectedBlock.size, alpha: 0.55 });
   }, [selectedBlock, isDev, computeWorldFromClient, snapSize, clampPlacement]);
+
+  const updateRemoveGhostFromClient = useCallback(
+    (clientX, clientY) => {
+      if (!isRemoveTool || !isDev) return;
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const grid = snapSize === 64 ? 64 : 32;
+      const snappedX0 = Math.floor(worldX / grid) * grid;
+      const snappedY0 = Math.floor(worldY / grid) * grid;
+      const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, grid);
+      setGhost({ kind: 'remove', x: snappedX, y: snappedY, size: grid, alpha: 0.55 });
+    },
+    [isRemoveTool, isDev, computeWorldFromClient, snapSize, clampPlacement]
+  );
 
   const placeFromClient = useCallback((clientX, clientY) => {
     if (!selectedBlock || !isDev) return;
@@ -608,23 +668,100 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     placeFromClient(clientX, clientY);
   }, [selectedBlock, isDev, placeFromClient]);
 
+  const removeFromClient = useCallback(
+    (clientX, clientY) => {
+      if (!isRemoveTool || !isDev) return;
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const grid = snapSize === 64 ? 64 : 32;
+      const snappedX0 = Math.floor(worldX / grid) * grid;
+      const snappedY0 = Math.floor(worldY / grid) * grid;
+      const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, grid);
+      const tilePlaced = Array.isArray(placedBlocks)
+        ? placedBlocks.filter((pb) => pb && pb.x === snappedX && pb.y === snappedY)
+        : [];
+
+      if (tilePlaced.length === 0) return;
+
+      const present = new Set(
+        tilePlaced
+          .map((pb) => blocksById.get(pb.blockId)?.category)
+          .filter((c) => typeof c === 'string' && c.length > 0)
+      );
+      const category = REMOVE_LAYER_ORDER.find((c) => present.has(c)) || 'block';
+
+      if (
+        lastRemoveCellRef.current.x === snappedX &&
+        lastRemoveCellRef.current.y === snappedY &&
+        lastRemoveCellRef.current.category === category
+      ) {
+        return;
+      }
+
+      const idsToDelete = tilePlaced
+        .filter((pb) => blocksById.get(pb.blockId)?.category === category)
+        .map((pb) => pb.id);
+
+      if (idsToDelete.length === 0) return;
+
+      // Do not optimistically delete real placements.
+      // We reconcile via the server's `blocks:placed:remove` event.
+      lastRemoveCellRef.current = { x: snappedX, y: snappedY, category };
+      socketRef.current?.emit('blocks:remove', { x: snappedX, y: snappedY, category });
+    },
+    [
+      isRemoveTool,
+      isDev,
+      computeWorldFromClient,
+      snapSize,
+      clampPlacement,
+      placedBlocks,
+      blocksById,
+    ]
+  );
+
+  const removeFromEvent = useCallback(
+    (e) => {
+      if (!isRemoveTool || !isDev) return;
+      const target = e.target;
+      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+      const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+      if (clientX == null || clientY == null) return;
+      removeFromClient(clientX, clientY);
+    },
+    [isRemoveTool, isDev, removeFromClient]
+  );
+
   useEffect(() => {
-    if (!selectedBlock || !isDev) return;
+    if (!isDev || (!selectedBlock && !isRemoveTool)) return;
     let raf = 0;
     const tick = () => {
       const p = lastPointerRef.current;
       if (p.ok && p.x != null && p.y != null) {
-        updateGhostFromClient(p.x, p.y);
-        if (placingRef.current) placeFromClient(p.x, p.y);
+        if (isRemoveTool) updateRemoveGhostFromClient(p.x, p.y);
+        else updateGhostFromClient(p.x, p.y);
+
+        if (placingRef.current) {
+          if (isRemoveTool) removeFromClient(p.x, p.y);
+          else placeFromClient(p.x, p.y);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [selectedBlock, isDev, updateGhostFromClient, placeFromClient]);
+  }, [
+    selectedBlock,
+    isDev,
+    isRemoveTool,
+    updateGhostFromClient,
+    updateRemoveGhostFromClient,
+    placeFromClient,
+    removeFromClient,
+  ]);
 
   useEffect(() => {
-    if (!selectedBlock || !isDev) {
+    if (!isDev || (!selectedBlock && !isRemoveTool)) {
       setGhost(null);
       return;
     }
@@ -641,9 +778,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       const clientY = e.clientY ?? e.touches?.[0]?.clientY;
       if (clientX == null || clientY == null) return;
       lastPointerRef.current = { x: clientX, y: clientY, ok: true };
-      updateGhostFromClient(clientX, clientY);
+      if (isRemoveTool) updateRemoveGhostFromClient(clientX, clientY);
+      else updateGhostFromClient(clientX, clientY);
       if (placingRef.current) {
-        placeFromEvent(e);
+        if (isRemoveTool) removeFromEvent(e);
+        else placeFromEvent(e);
       }
     };
     const onLeave = () => {
@@ -664,7 +803,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       el.removeEventListener('touchend', onLeave);
       el.removeEventListener('touchcancel', onLeave);
     };
-  }, [selectedBlock, isDev, placeFromEvent, updateGhostFromClient]);
+  }, [selectedBlock, isDev, isRemoveTool, placeFromEvent, updateGhostFromClient, updateRemoveGhostFromClient, removeFromEvent]);
 
   return (
     <div className="game-area">
@@ -713,6 +852,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         className="game-viewport"
         ref={viewportRef}
         onMouseDown={(e) => {
+          if (isRemoveTool) {
+            placingRef.current = true;
+            removeFromEvent(e);
+            return;
+          }
           if (!selectedBlock) return;
           placingRef.current = true;
           placeFromEvent(e);
@@ -724,6 +868,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           placingRef.current = false;
         }}
         onTouchStart={(e) => {
+          if (isRemoveTool) {
+            placingRef.current = true;
+            removeFromEvent(e);
+            return;
+          }
           if (!selectedBlock) return;
           placingRef.current = true;
           placeFromEvent(e);

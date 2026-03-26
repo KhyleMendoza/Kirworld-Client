@@ -8,6 +8,7 @@ import south from '../character/rotations/south.png';
 import southWest from '../character/rotations/south-west.png';
 import west from '../character/rotations/west.png';
 import northWest from '../character/rotations/north-west.png';
+import removeToolPng from '../assets/remove-tool.png';
 
 const ROTATION_URLS = {
   north,
@@ -109,6 +110,7 @@ export default function WorldCanvas({
 }) {
   const canvasRef = useRef(null);
   const [sprites, setSprites] = useState(null);
+  const removeToolImgRef = useRef(null);
   const rafRef = useRef(null);
   const blockCacheRef = useRef(new Map());
   const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0, blockPngImagesRef: null });
@@ -140,6 +142,14 @@ export default function WorldCanvas({
     loadAllSprites().then((map) => {
       if (!cancelled) setSprites(map);
     });
+    loadImage(removeToolPng)
+      .then((img) => {
+        if (cancelled) return;
+        removeToolImgRef.current = img;
+      })
+      .catch(() => {
+        // ignore; ghost will still draw red placeholder
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -286,6 +296,28 @@ export default function WorldCanvas({
           ctx.drawImage(bmp, Math.round(ghostBlock.x), Math.round(ghostBlock.y), ghostBlock.size, ghostBlock.size);
           ctx.restore();
         }
+      } else if (ghostBlock?.kind === 'remove') {
+        const gx = Math.round(ghostBlock.x);
+        const gy = Math.round(ghostBlock.y);
+        const gs = ghostBlock.size;
+        ctx.save();
+        ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? ghostBlock.alpha : 0.55;
+        ctx.fillStyle = 'rgba(233,69,96,0.25)';
+        ctx.fillRect(gx, gy, gs, gs);
+        ctx.strokeStyle = 'rgba(233,69,96,0.9)';
+        ctx.lineWidth = Math.max(1, Math.round(2 / (blockScale || 1)));
+        ctx.strokeRect(gx + 0.5, gy + 0.5, gs - 1, gs - 1);
+        const toolImg = removeToolImgRef.current;
+        if (toolImg && toolImg.complete && toolImg.naturalWidth > 0) {
+          // Center icon within the tile.
+          const drawW = gs;
+          const drawH = gs;
+          const dx = gx;
+          const dy = gy;
+          ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? Math.min(1, ghostBlock.alpha) : 0.9;
+          ctx.drawImage(toolImg, dx, dy, drawW, drawH);
+        }
+        ctx.restore();
       }
 
       const shouldDrawGrid = (showGridNow || forceShowGridNow) && blockScale > 0.0001;

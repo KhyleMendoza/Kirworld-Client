@@ -1,9 +1,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { decodePixelsFromBase64 } from '../utils/pixelCodec';
 import '../styles/Inventory.css';
+import removeToolPng from '../assets/remove-tool.png';
 
 const SLOT_COUNT = 30;
 const HOTBAR_COUNT = 5;
+const REMOVE_TOOL_ID = 'remove_tool';
 
 const BASE_PALETTE = [
   '#000000',
@@ -130,7 +132,7 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
         {hotbarItems.map((blockId, idx) => {
           const isSelected = selectedIndex != null && idx === selectedIndex;
           const block = blockId ? blocksById.get(blockId) : null;
-          const preview = block ? getPreview(block) : null;
+          const preview = block ? getPreview(block) : blockId === REMOVE_TOOL_ID ? removeToolPng : null;
           return (
             <button
               key={idx}
@@ -138,7 +140,13 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
               className={`inventory-slot inventory-slot--hotbar inventory-slot-btn ${isSelected ? 'inventory-slot--selected' : ''}`}
               onClick={() => onSelectSlot?.(idx)}
               aria-label={`Hotbar slot ${idx + 1}`}
-              title={block ? `${block.name} (${block.size}x${block.size})` : `Slot ${idx + 1}`}
+              title={
+                block
+                  ? `${block.name} (${block.size}x${block.size})`
+                  : blockId === REMOVE_TOOL_ID
+                    ? 'Remove tool'
+                    : `Slot ${idx + 1}`
+              }
             >
               {preview ? <span className="inventory-slot-preview" style={{ backgroundImage: `url(${preview})` }} /> : null}
             </button>

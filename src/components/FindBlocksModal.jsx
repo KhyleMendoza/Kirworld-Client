@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { encodePixelsToBase64, decodePixelsFromBase64 } from '../utils/pixelCodec';
 import '../styles/FindBlocksModal.css';
+import removeToolPng from '../assets/remove-tool.png';
 const BASE_COLORS = [
   '#000000',
   '#ffffff',
@@ -40,6 +41,8 @@ function clamp(n, min, max) {
 function makeEmpty(size) {
   return new Uint8Array(size * size);
 }
+
+const REMOVE_TOOL_ID = 'remove_tool';
 
 export default function FindBlocksModal({
   open,
@@ -368,6 +371,18 @@ export default function FindBlocksModal({
               </button>
             </div>
             <div className="find-list">
+              <div className="find-item">
+                <div className="find-item-preview">
+                  <span className="find-item-preview-img" style={{ backgroundImage: `url(${removeToolPng})` }} />
+                </div>
+                <div className="find-item-main">
+                  <div className="find-item-name">Remove Tool</div>
+                  <div className="find-item-meta">tool</div>
+                </div>
+                <button type="button" className="find-item-add" onClick={() => onAddToInventory?.(REMOVE_TOOL_ID)}>
+                  Add
+                </button>
+              </div>
               {filtered.map((b) => (
                 <div key={b.id} className="find-item">
                   <div className="find-item-preview">
@@ -381,8 +396,7 @@ export default function FindBlocksModal({
                   <div className="find-item-main">
                     <div className="find-item-name">{b.name}</div>
                     <div className="find-item-meta">
-                      {b.size}×{b.size}
-                      {b.category ? ` · ${b.category}` : ''}
+                      {b.category ? b.category : ''}
                     </div>
                   </div>
                   <button type="button" className="find-item-add" onClick={() => handleAddBlock(b)}>
