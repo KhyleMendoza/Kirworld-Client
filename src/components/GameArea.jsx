@@ -536,6 +536,15 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const handleAddBlockToInventory = useCallback((blockId) => {
     if (blockId === REMOVE_TOOL_ID) {
       setRemoveLayerIndex(0);
+      setInventorySlots((prev) => {
+        const alreadyHas = prev.some((item) => item?.type === 'tool' && item.toolId === REMOVE_TOOL_ID);
+        if (alreadyHas) return prev;
+        const next = prev.slice();
+        const idx = next.findIndex((s) => s == null);
+        if (idx === -1) return prev;
+        next[idx] = { type: 'tool', toolId: REMOVE_TOOL_ID };
+        return next;
+      });
       setHotbar((prev) => {
         const current = Array.isArray(prev) ? prev : [];
         if (current.includes(REMOVE_TOOL_ID)) {
@@ -581,6 +590,14 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const handleAssignHotbar = useCallback((blockId) => {
     setHotbar((prev) => {
       const current = Array.isArray(prev) ? prev : [];
+      if (blockId === REMOVE_TOOL_ID) {
+        const withoutRemove = current.filter((id) => id !== REMOVE_TOOL_ID);
+        const capacity = Math.max(0, HOTBAR_SLOTS - 1);
+        const nextWithoutRemove = withoutRemove.slice(0, capacity);
+        const next = nextWithoutRemove.concat(REMOVE_TOOL_ID);
+        setSelectedHotbar(next.indexOf(REMOVE_TOOL_ID));
+        return next;
+      }
       const hasRemove = current.includes(REMOVE_TOOL_ID);
       const withoutRemove = hasRemove ? current.filter((id) => id !== REMOVE_TOOL_ID) : current.slice();
 

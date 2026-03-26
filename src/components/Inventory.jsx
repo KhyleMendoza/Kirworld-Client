@@ -169,15 +169,17 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
         <div className="inventory-grid">
           {normalizedSlots.map((item, idx) => {
             const block = item?.type === 'block' ? blocksById.get(item.blockId) : null;
-            const preview = block ? getPreview(block) : null;
+            const isRemoveTool = item?.type === 'tool' && item.toolId === REMOVE_TOOL_ID;
+            const preview = block ? getPreview(block) : isRemoveTool ? removeToolPng : null;
             return (
               <button
                 key={idx}
                 type="button"
                 className="inventory-slot inventory-slot-btn"
-                title={block ? `${block.name} (${block.size}x${block.size})` : ''}
+                title={block ? `${block.name} (${block.size}x${block.size})` : isRemoveTool ? 'Remove tool' : ''}
                 onClick={() => {
                   if (block) onAssignHotbar?.(block.id);
+                  else if (isRemoveTool) onAssignHotbar?.(REMOVE_TOOL_ID);
                 }}
               >
                 {preview ? <span className="inventory-slot-preview" style={{ backgroundImage: `url(${preview})` }} /> : null}
