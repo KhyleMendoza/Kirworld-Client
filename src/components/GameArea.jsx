@@ -40,7 +40,10 @@ const IDLE_AFK_MS = 10000;
 const INVENTORY_SLOTS = 30;
 const HOTBAR_SLOTS = 5;
 const REMOVE_TOOL_ID = 'remove_tool';
+const DOG_TOOL_ID = 'dog';
 const REMOVE_LAYER_ORDER = ['block', 'decoration', 'wallpaper'];
+const DOG_SIZE = 48;
+const DOG_CENTER_OFFSET = Math.floor((DOG_SIZE - WORLD_TILE_SIZE) / 2);
 
 const ROTATION_NAMES = ['west', 'south-west', 'north', 'south-east', 'east', 'north-east', 'south', 'north-west'];
 
@@ -74,6 +77,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const [characterReady, setCharacterReady] = useState(false);
   const [blocks, setBlocks] = useState([]);
   const [placedBlocks, setPlacedBlocks] = useState([]);
+  const [dogs, setDogs] = useState([]);
   const [findOpen, setFindOpen] = useState(false);
   const [snapSize, setSnapSize] = useState(32);
   const [inventorySlots, setInventorySlots] = useState(() => Array.from({ length: INVENTORY_SLOTS }, () => null));
@@ -84,8 +88,10 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   const placingRef = useRef(false);
   const lastPointerRef = useRef({ x: null, y: null, ok: false });
   const lastPlaceCellRef = useRef({ x: null, y: null });
+  const lastDogPlaceCellRef = useRef({ x: null, y: null });
   const [ghost, setGhost] = useState(null);
   const [chatBubbles, setChatBubbles] = useState([]);
+  const [dogBubbles, setDogBubbles] = useState([]);
   const lastMoveSentRef = useRef({ dx: 0, dy: 0 });
   const [pullOverlay, setPullOverlay] = useState(null);
   const [whoPulseUntil, setWhoPulseUntil] = useState(0);
@@ -274,8 +280,45 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     });
     socket.on('blocks:error', ({ message }) => {
       setPlacedBlocks((prev) => prev.filter((p) => !String(p.id).startsWith('opt-')));
-      // If the server rejects a placement/removal, allow the user to retry.
       lastRemoveCellRef.current = { x: null, y: null, category: null };
+      setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
+    });
+
+    socket.on('dogs:placed', ({ dogs: list }) => {
+      if (Array.isArray(list)) setDogs(list);
+    });
+    socket.on('dogs:placed:add', ({ dog }) => {
+      if (!dog?.id) return;
+      setDogs((prev) => {
+        const next = prev.filter(
+          (d) =>
+            d.id !== dog.id &&
+            !(d.x === dog.x && d.y === dog.y && String(d.id).startsWith('opt-'))
+        );
+        next.push(dog);
+        return next;
+      });
+    });
+    socket.on('dogs:placed:remove', ({ ids }) => {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const set = new Set(ids);
+      setDogs((prev) => prev.filter((d) => !set.has(d.id)));
+      setDogBubbles((prev) => prev.filter((b) => !set.has(b.dogId)));
+    });
+    socket.on('dogs:rotate', ({ id, dir }) => {
+      if (!id) return;
+      setDogs((prev) => prev.map((d) => (d.id === id ? { ...d, dir } : d)));
+    });
+    socket.on('dogs:talked', ({ id, text }) => {
+      if (!id) return;
+      const msg = String(text || '').trim() || 'Woof!';
+      const now = Date.now();
+      setDogBubbles((prev) => [
+        ...prev.filter((b) => now - b.createdAt < 4000).slice(-20),
+        { key: `dog-${id}-${now}`, dogId: id, text: msg, createdAt: now },
+      ]);
+    });
+    socket.on('dogs:error', ({ message }) => {
       setMessages((prev) => [...prev.slice(-99), { id: 'system', name: 'System:', text: String(message || 'Error'), system: true }]);
     });
 
@@ -302,6 +345,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     const interval = setInterval(() => {
       const now = Date.now();
       setChatBubbles((prev) => prev.filter((b) => now - b.createdAt < 4000));
+      setDogBubbles((prev) => prev.filter((b) => now - b.createdAt < 4000));
     }, 200);
     return () => clearInterval(interval);
   }, []);
@@ -499,7 +543,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
   const selectedHotbarItem = selectedHotbar != null ? (hotbar[selectedHotbar] ?? null) : null;
   const isRemoveTool = selectedHotbarItem === REMOVE_TOOL_ID;
-  const selectedBlockId = isRemoveTool ? null : selectedHotbarItem;
+  const isDogTool = selectedHotbarItem === DOG_TOOL_ID;
+  const selectedBlockId = (isRemoveTool || isDogTool) ? null : selectedHotbarItem;
   const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
   const blocksById = useMemo(() => {
     const map = new Map();
@@ -508,7 +553,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   }, [blocks]);
   const myCanvasPlayer = canvasDisplayList.find((p) => p.id === myId);
   const debugShowGrid = !!myCanvasPlayer?.showGridDebug;
-  const showGrid = !!selectedBlock;
+  const showGrid = !!selectedBlock || isDogTool;
 
   useEffect(() => {
     if (isRemoveTool) {
@@ -557,6 +602,34 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         const nextWithoutRemove = withoutRemove.slice(0, capacity);
         const next = nextWithoutRemove.concat(REMOVE_TOOL_ID);
         setSelectedHotbar(next.indexOf(REMOVE_TOOL_ID));
+        return next;
+      });
+      return;
+    }
+
+    if (blockId === DOG_TOOL_ID) {
+      setInventorySlots((prev) => {
+        const alreadyHas = prev.some((item) => item?.type === 'tool' && item.toolId === DOG_TOOL_ID);
+        if (alreadyHas) return prev;
+        const next = prev.slice();
+        const idx = next.findIndex((s) => s == null);
+        if (idx === -1) return prev;
+        next[idx] = { type: 'tool', toolId: DOG_TOOL_ID };
+        return next;
+      });
+
+      setHotbar((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        if (current.includes(DOG_TOOL_ID)) {
+          setSelectedHotbar(current.indexOf(DOG_TOOL_ID));
+          return current;
+        }
+        const hasRemove = current.includes(REMOVE_TOOL_ID);
+        const withoutRemove = current.filter((id) => id !== REMOVE_TOOL_ID);
+        const capacity = Math.max(0, HOTBAR_SLOTS - (hasRemove ? 1 : 0));
+        const nextWithoutRemove = [DOG_TOOL_ID, ...withoutRemove].slice(0, capacity);
+        const next = hasRemove ? nextWithoutRemove.concat(REMOVE_TOOL_ID) : nextWithoutRemove;
+        setSelectedHotbar(next.indexOf(DOG_TOOL_ID));
         return next;
       });
       return;
@@ -650,6 +723,114 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     [isRemoveTool, isDev, computeWorldFromClient, snapSize, clampPlacement]
   );
 
+  const updateDogGhostFromClient = useCallback(
+    (clientX, clientY) => {
+      if (!isDogTool || !isDev) return;
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const grid = 32;
+      const snappedX0 = Math.floor(worldX / grid) * grid;
+      const snappedY0 = Math.floor(worldY / grid) * grid;
+      const { x: snappedX, y: snappedY } = clampPlacement(
+        snappedX0 - DOG_CENTER_OFFSET,
+        snappedY0 - DOG_CENTER_OFFSET,
+        DOG_SIZE
+      );
+      setGhost({ kind: 'dog', x: snappedX, y: snappedY, size: DOG_SIZE, dir: 'south', alpha: 0.55 });
+    },
+    [isDogTool, isDev, computeWorldFromClient, clampPlacement]
+  );
+
+  const placeDogFromClient = useCallback(
+    (clientX, clientY) => {
+      if (!isDogTool || !isDev) return;
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const grid = 32;
+      const snappedX0 = Math.floor(worldX / grid) * grid;
+      const snappedY0 = Math.floor(worldY / grid) * grid;
+      const { x: snappedX, y: snappedY } = clampPlacement(
+        snappedX0 - DOG_CENTER_OFFSET,
+        snappedY0 - DOG_CENTER_OFFSET,
+        DOG_SIZE
+      );
+
+      const last = lastDogPlaceCellRef.current;
+      if (last.x === snappedX && last.y === snappedY) return;
+      lastDogPlaceCellRef.current = { x: snappedX, y: snappedY };
+
+      const optId = `opt-dog-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setDogs((prev) => {
+        const withoutCell = prev.filter(
+          (d) => !(d.x === snappedX && d.y === snappedY && String(d.id).startsWith('opt-'))
+        );
+        return [...withoutCell, { id: optId, x: snappedX, y: snappedY, dir: 'south' }];
+      });
+
+      socketRef.current?.emit('dogs:place', { x: snappedX, y: snappedY });
+    },
+    [isDogTool, isDev, computeWorldFromClient, clampPlacement]
+  );
+
+  const placeDogFromEvent = useCallback(
+    (e) => {
+      if (!isDogTool || !isDev) return;
+      const target = e.target;
+      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return;
+      const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+      if (clientX == null || clientY == null) return;
+      placeDogFromClient(clientX, clientY);
+    },
+    [isDogTool, isDev, placeDogFromClient]
+  );
+
+  const talkToDogFromEvent = useCallback(
+    (e) => {
+      if (!socketRef.current) return false;
+      const target = e.target;
+      if (target && target.closest?.('.chatbox, .inventory, .find-overlay')) return false;
+
+      const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+      const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+      if (clientX == null || clientY == null) return false;
+
+      if (!Array.isArray(dogs) || dogs.length === 0) return false;
+
+      const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
+      const clickedTileX = Math.floor(worldX / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+      const clickedTileY = Math.floor(worldY / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+      let best = null;
+      let bestY = -Infinity;
+      for (const d of dogs) {
+        if (!d) continue;
+        const dogCenterX = d.x + DOG_SIZE / 2;
+        const dogCenterY = d.y + DOG_SIZE / 2;
+        const dogTileX = Math.floor(dogCenterX / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+        const dogTileY = Math.floor(dogCenterY / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+        const sameTile = clickedTileX === dogTileX && clickedTileY === dogTileY;
+        if (sameTile && d.y >= bestY) {
+          best = d;
+          bestY = d.y;
+        }
+      }
+
+      if (!best?.id) return false;
+
+      const myId = myIdRef.current;
+      const me = myId ? canvasDisplayList.find((p) => p.id === myId) : null;
+      if (!me) return false;
+      const myCx = me.x + PLAYER_SIZE / 2;
+      const myCy = me.y + PLAYER_SIZE / 2;
+      const dogCx = best.x + DOG_SIZE / 2;
+      const dogCy = best.y + DOG_SIZE / 2;
+      const distTiles = Math.hypot(myCx - dogCx, myCy - dogCy) / WORLD_TILE_SIZE;
+      if (distTiles > 3) return false;
+
+      socketRef.current.emit('dogs:talk', { dogId: best.id });
+      return true;
+    },
+    [dogs, computeWorldFromClient, canvasDisplayList]
+  );
+
   const placeFromClient = useCallback((clientX, clientY) => {
     if (!selectedBlock || !isDev) return;
     const { worldX, worldY } = computeWorldFromClient(clientX, clientY);
@@ -693,6 +874,20 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       const snappedX0 = Math.floor(worldX / grid) * grid;
       const snappedY0 = Math.floor(worldY / grid) * grid;
       const { x: snappedX, y: snappedY } = clampPlacement(snappedX0, snappedY0, grid);
+
+      const dogHit = (Array.isArray(dogs) ? dogs : []).find((d) => {
+        if (!d) return false;
+        const dogCenterX = d.x + DOG_SIZE / 2;
+        const dogCenterY = d.y + DOG_SIZE / 2;
+        const dogTileX = Math.floor(dogCenterX / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+        const dogTileY = Math.floor(dogCenterY / WORLD_TILE_SIZE) * WORLD_TILE_SIZE;
+        return dogTileX === snappedX && dogTileY === snappedY;
+      });
+      if (dogHit?.id) {
+        socketRef.current?.emit('dogs:remove', { dogId: dogHit.id });
+        return;
+      }
+
       const tilePlaced = Array.isArray(placedBlocks)
         ? placedBlocks.filter((pb) => pb && pb.x === snappedX && pb.y === snappedY)
         : [];
@@ -720,8 +915,6 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
 
       if (idsToDelete.length === 0) return;
 
-      // Do not optimistically delete real placements.
-      // We reconcile via the server's `blocks:placed:remove` event.
       lastRemoveCellRef.current = { x: snappedX, y: snappedY, category };
       socketRef.current?.emit('blocks:remove', { x: snappedX, y: snappedY, category });
     },
@@ -731,6 +924,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       computeWorldFromClient,
       snapSize,
       clampPlacement,
+      dogs,
       placedBlocks,
       blocksById,
     ]
@@ -750,16 +944,18 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
   );
 
   useEffect(() => {
-    if (!isDev || (!selectedBlock && !isRemoveTool)) return;
+    if (!isDev || (!selectedBlock && !isRemoveTool && !isDogTool)) return;
     let raf = 0;
     const tick = () => {
       const p = lastPointerRef.current;
       if (p.ok && p.x != null && p.y != null) {
         if (isRemoveTool) updateRemoveGhostFromClient(p.x, p.y);
+        else if (isDogTool) updateDogGhostFromClient(p.x, p.y);
         else updateGhostFromClient(p.x, p.y);
 
         if (placingRef.current) {
           if (isRemoveTool) removeFromClient(p.x, p.y);
+          else if (isDogTool) placeDogFromClient(p.x, p.y);
           else placeFromClient(p.x, p.y);
         }
       }
@@ -771,14 +967,17 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
     selectedBlock,
     isDev,
     isRemoveTool,
+    isDogTool,
     updateGhostFromClient,
+    updateDogGhostFromClient,
     updateRemoveGhostFromClient,
     placeFromClient,
+    placeDogFromClient,
     removeFromClient,
   ]);
 
   useEffect(() => {
-    if (!isDev || (!selectedBlock && !isRemoveTool)) {
+    if (!isDev || (!selectedBlock && !isRemoveTool && !isDogTool)) {
       setGhost(null);
       return;
     }
@@ -796,9 +995,11 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       if (clientX == null || clientY == null) return;
       lastPointerRef.current = { x: clientX, y: clientY, ok: true };
       if (isRemoveTool) updateRemoveGhostFromClient(clientX, clientY);
+      else if (isDogTool) updateDogGhostFromClient(clientX, clientY);
       else updateGhostFromClient(clientX, clientY);
       if (placingRef.current) {
         if (isRemoveTool) removeFromEvent(e);
+        else if (isDogTool) placeDogFromEvent(e);
         else placeFromEvent(e);
       }
     };
@@ -820,7 +1021,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
       el.removeEventListener('touchend', onLeave);
       el.removeEventListener('touchcancel', onLeave);
     };
-  }, [selectedBlock, isDev, isRemoveTool, placeFromEvent, updateGhostFromClient, updateRemoveGhostFromClient, removeFromEvent]);
+  }, [selectedBlock, isDev, isRemoveTool, isDogTool, placeFromEvent, placeDogFromEvent, updateGhostFromClient, updateDogGhostFromClient, updateRemoveGhostFromClient, removeFromEvent]);
 
   return (
     <div className="game-area">
@@ -874,6 +1075,12 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
             removeFromEvent(e);
             return;
           }
+          if (talkToDogFromEvent(e)) return;
+          if (isDogTool) {
+            placingRef.current = true;
+            placeDogFromEvent(e);
+            return;
+          }
           if (!selectedBlock) return;
           placingRef.current = true;
           placeFromEvent(e);
@@ -888,6 +1095,12 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           if (isRemoveTool) {
             placingRef.current = true;
             removeFromEvent(e);
+            return;
+          }
+          if (talkToDogFromEvent(e)) return;
+          if (isDogTool) {
+            placingRef.current = true;
+            placeDogFromEvent(e);
             return;
           }
           if (!selectedBlock) return;
@@ -911,6 +1124,8 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
           myId={myId}
           blocks={blocks}
           placedBlocks={placedBlocks}
+            dogs={dogs}
+            dogBubbles={dogBubbles}
           ghost={ghost}
           showGrid={showGrid}
           forceShowGrid={debugShowGrid}

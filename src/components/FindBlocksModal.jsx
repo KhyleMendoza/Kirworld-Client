@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { encodePixelsToBase64, decodePixelsFromBase64 } from '../utils/pixelCodec';
 import '../styles/FindBlocksModal.css';
 import removeToolPng from '../assets/remove-tool.png';
+import dogSouthPng from '../dog/rotations/south.png';
 const BASE_COLORS = [
   '#000000',
   '#ffffff',
@@ -43,6 +44,7 @@ function makeEmpty(size) {
 }
 
 const REMOVE_TOOL_ID = 'remove_tool';
+const DOG_TOOL_ID = 'dog';
 
 export default function FindBlocksModal({
   open,
@@ -380,6 +382,21 @@ export default function FindBlocksModal({
                   <div className="find-item-meta">tool</div>
                 </div>
                 <button type="button" className="find-item-add" onClick={() => onAddToInventory?.(REMOVE_TOOL_ID)}>
+                  Add
+                </button>
+              </div>
+              <div className="find-item">
+                <div className="find-item-preview">
+                  <span
+                    className="find-item-preview-img"
+                    style={{ backgroundImage: `url(${dogSouthPng})`, backgroundPosition: 'center 58%' }}
+                  />
+                </div>
+                <div className="find-item-main">
+                  <div className="find-item-name">Dog</div>
+                  <div className="find-item-meta">npc</div>
+                </div>
+                <button type="button" className="find-item-add" onClick={() => onAddToInventory?.(DOG_TOOL_ID)}>
                   Add
                 </button>
               </div>

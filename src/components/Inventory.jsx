@@ -2,10 +2,12 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { decodePixelsFromBase64 } from '../utils/pixelCodec';
 import '../styles/Inventory.css';
 import removeToolPng from '../assets/remove-tool.png';
+import dogSouthPng from '../dog/rotations/south.png';
 
 const SLOT_COUNT = 30;
 const HOTBAR_COUNT = 5;
 const REMOVE_TOOL_ID = 'remove_tool';
+const DOG_TOOL_ID = 'dog';
 
 const BASE_PALETTE = [
   '#000000',
@@ -132,7 +134,8 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
         {hotbarItems.map((blockId, idx) => {
           const isSelected = selectedIndex != null && idx === selectedIndex;
           const block = blockId ? blocksById.get(blockId) : null;
-          const preview = block ? getPreview(block) : blockId === REMOVE_TOOL_ID ? removeToolPng : null;
+          const preview =
+            block ? getPreview(block) : blockId === REMOVE_TOOL_ID ? removeToolPng : blockId === DOG_TOOL_ID ? dogSouthPng : null;
           return (
             <button
               key={idx}
@@ -145,10 +148,20 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
                   ? `${block.name} (${block.size}x${block.size})`
                   : blockId === REMOVE_TOOL_ID
                     ? 'Remove tool'
+                    : blockId === DOG_TOOL_ID
+                      ? 'Dog'
                     : `Slot ${idx + 1}`
               }
             >
-              {preview ? <span className="inventory-slot-preview" style={{ backgroundImage: `url(${preview})` }} /> : null}
+              {preview ? (
+                <span
+                  className="inventory-slot-preview"
+                  style={{
+                    backgroundImage: `url(${preview})`,
+                    backgroundPosition: blockId === DOG_TOOL_ID ? 'center 58%' : 'center',
+                  }}
+                />
+              ) : null}
             </button>
           );
         })}
@@ -170,19 +183,29 @@ export default function Inventory({ slots, hotbar, selectedIndex, onSelectSlot, 
           {normalizedSlots.map((item, idx) => {
             const block = item?.type === 'block' ? blocksById.get(item.blockId) : null;
             const isRemoveTool = item?.type === 'tool' && item.toolId === REMOVE_TOOL_ID;
-            const preview = block ? getPreview(block) : isRemoveTool ? removeToolPng : null;
+            const isDogTool = item?.type === 'tool' && item.toolId === DOG_TOOL_ID;
+            const preview = block ? getPreview(block) : isRemoveTool ? removeToolPng : isDogTool ? dogSouthPng : null;
             return (
               <button
                 key={idx}
                 type="button"
                 className="inventory-slot inventory-slot-btn"
-                title={block ? `${block.name} (${block.size}x${block.size})` : isRemoveTool ? 'Remove tool' : ''}
+                title={block ? `${block.name} (${block.size}x${block.size})` : isRemoveTool ? 'Remove tool' : isDogTool ? 'Dog' : ''}
                 onClick={() => {
                   if (block) onAssignHotbar?.(block.id);
                   else if (isRemoveTool) onAssignHotbar?.(REMOVE_TOOL_ID);
+                  else if (isDogTool) onAssignHotbar?.(DOG_TOOL_ID);
                 }}
               >
-                {preview ? <span className="inventory-slot-preview" style={{ backgroundImage: `url(${preview})` }} /> : null}
+                {preview ? (
+                  <span
+                    className="inventory-slot-preview"
+                    style={{
+                      backgroundImage: `url(${preview})`,
+                      backgroundPosition: isDogTool ? 'center 58%' : 'center',
+                    }}
+                  />
+                ) : null}
               </button>
             );
           })}

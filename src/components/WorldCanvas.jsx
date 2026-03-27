@@ -9,6 +9,14 @@ import southWest from '../character/rotations/south-west.png';
 import west from '../character/rotations/west.png';
 import northWest from '../character/rotations/north-west.png';
 import removeToolPng from '../assets/remove-tool.png';
+import dogNorth from '../dog/rotations/north.png';
+import dogNorthEast from '../dog/rotations/north-east.png';
+import dogEast from '../dog/rotations/east.png';
+import dogSouthEast from '../dog/rotations/south-east.png';
+import dogSouth from '../dog/rotations/south.png';
+import dogSouthWest from '../dog/rotations/south-west.png';
+import dogWest from '../dog/rotations/west.png';
+import dogNorthWest from '../dog/rotations/north-west.png';
 
 const ROTATION_URLS = {
   north,
@@ -19,6 +27,17 @@ const ROTATION_URLS = {
   'south-west': southWest,
   west,
   'north-west': northWest,
+};
+
+const DOG_ROTATION_URLS = {
+  north: dogNorth,
+  'north-east': dogNorthEast,
+  east: dogEast,
+  'south-east': dogSouthEast,
+  south: dogSouth,
+  'south-west': dogSouthWest,
+  west: dogWest,
+  'north-west': dogNorthWest,
 };
 
 const walkGlob = import.meta.glob('../character/walk/*/*.png', { eager: true, query: '?url', import: 'default' });
@@ -32,6 +51,8 @@ const WORLD_TILES_Y = 500;
 const WORLD_WIDTH = WORLD_TILES_X * WORLD_TILE_SIZE;
 const WORLD_HEIGHT = WORLD_TILES_Y * WORLD_TILE_SIZE;
 const PLAYER_SIZE = 48;
+const DOG_SIZE = 48;
+const DOG_DRAW_Y_OFFSET = 4;
 const GRID_SIZE = WORLD_TILE_SIZE;
 const WALK_FRAME_MS = 90;
 const WALK_FRAMES = 6;
@@ -60,6 +81,10 @@ async function loadAllSprites() {
   for (const dir of DIRECTIONS) {
     const url = ROTATION_URLS[dir];
     if (url) map.set(`rot/${dir}`, await loadImage(url));
+  }
+  for (const dir of DIRECTIONS) {
+    const url = DOG_ROTATION_URLS[dir];
+    if (url) map.set(`dog/rot/${dir}`, await loadImage(url));
   }
   for (const dir of DIRECTIONS) {
     for (let f = 0; f < WALK_FRAMES; f++) {
@@ -100,6 +125,8 @@ export default function WorldCanvas({
   myId,
   blocks = [],
   placedBlocks = [],
+  dogs = [],
+  dogBubbles = [],
   ghost = null,
   showGrid = false,
   forceShowGrid = false,
@@ -113,8 +140,8 @@ export default function WorldCanvas({
   const removeToolImgRef = useRef(null);
   const rafRef = useRef(null);
   const blockCacheRef = useRef(new Map());
-  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0, blockPngImagesRef: null });
-  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles, whoPulseUntil, blockPngImagesRef };
+  const propsRef = useRef({ zoom: 1, originX: 0, originY: 0, displayList: [], width: 800, height: 600, myId: null, blocks: [], placedBlocks: [], dogs: [], dogBubbles: [], ghost: null, showGrid: false, forceShowGrid: false, showGridCoords: false, chatBubbles: [], whoPulseUntil: 0, blockPngImagesRef: null });
+  propsRef.current = { zoom, originX, originY, displayList, width, height, myId, blocks, placedBlocks, dogs, dogBubbles, ghost, showGrid, forceShowGrid, showGridCoords, chatBubbles, whoPulseUntil, blockPngImagesRef };
 
   function getBlockBitmap(block) {
     if (!block?.id || !block?.pixels) return null;
@@ -147,9 +174,7 @@ export default function WorldCanvas({
         if (cancelled) return;
         removeToolImgRef.current = img;
       })
-      .catch(() => {
-        // ignore; ghost will still draw red placeholder
-      });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
@@ -162,7 +187,7 @@ export default function WorldCanvas({
     if (!ctx) return;
 
     function draw() {
-      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles, whoPulseUntil: whoPulseUntilNow, blockPngImagesRef: pngRefNow } = propsRef.current;
+      const { zoom: z, originX: ox, originY: oy, displayList: list, width: vw, height: vh, myId: currentMyId, blocks: blockDefs, placedBlocks: placed, dogs: dogsList, dogBubbles: dogBubbleList, ghost: ghostBlock, showGrid: showGridNow, forceShowGrid: forceShowGridNow, showGridCoords: showGridCoordsNow, chatBubbles: bubbles, whoPulseUntil: whoPulseUntilNow, blockPngImagesRef: pngRefNow } = propsRef.current;
       const dprNow = Math.min(window.devicePixelRatio || 1, 2);
       const bufW = Math.round(vw * dprNow);
       const bufH = Math.round(vh * dprNow);
@@ -205,6 +230,13 @@ export default function WorldCanvas({
         const arr = bubblesByPlayer.get(b.playerId) || [];
         arr.push(b);
         bubblesByPlayer.set(b.playerId, arr);
+      }
+      const bubblesByDog = new Map();
+      for (const b of dogBubbleList || []) {
+        if (!b || !b.dogId) continue;
+        const arr = bubblesByDog.get(b.dogId) || [];
+        arr.push(b);
+        bubblesByDog.set(b.dogId, arr);
       }
 
       const wrapBubbleSegments = (ctx2d, rawSegments, maxBubbleWidth) => {
@@ -282,6 +314,70 @@ export default function WorldCanvas({
         ctx.restore();
       }
 
+      const orderedDogs = [...(dogsList || [])].sort(
+        (a, b) => (Number(a?.y) || 0) - (Number(b?.y) || 0)
+      );
+      for (const d of orderedDogs) {
+        if (!d) continue;
+        const px = Math.round(Number(d.x));
+        const py = Math.round(Number(d.y) + DOG_DRAW_Y_OFFSET);
+        const dir = d.dir || d.direction || DEFAULT_DIR;
+        const img = sprites.get(`dog/rot/${dir}`) || sprites.get(`dog/rot/${DEFAULT_DIR}`);
+        if (img) {
+          ctx.drawImage(img, px, py, DOG_SIZE, DOG_SIZE);
+        }
+      }
+
+      for (const d of orderedDogs) {
+        if (!d?.id) continue;
+        const dogBubs = bubblesByDog.get(d.id);
+        if (!dogBubs?.length) continue;
+        const sorted = [...dogBubs].sort((a, b) => a.createdAt - b.createdAt);
+        const bubble = sorted[sorted.length - 1];
+        const age = now - bubble.createdAt;
+        if (age >= 4000) continue;
+        const life = age < 2500 ? 1 : 1 - (age - 2500) / 1500;
+        if (life <= 0) continue;
+
+        const text = String(bubble.text || 'Woof!').trim() || 'Woof!';
+        const lineHeight = 16;
+        const paddingX = 6;
+        const paddingY = 4;
+        const maxBubbleWidth = 180;
+        ctx.font = '11px system-ui, sans-serif';
+        const textW = Math.min(maxBubbleWidth, ctx.measureText(text).width);
+        const boxWidth = textW + paddingX * 2;
+        const boxHeight = lineHeight + paddingY * 2;
+        const nameX = Math.round(Number(d.x) + DOG_SIZE / 2);
+        const baseY = Math.round(Number(d.y) - 12);
+        const boxX = Math.round(nameX - boxWidth / 2);
+        const boxY = Math.round(baseY - boxHeight);
+        ctx.save();
+        ctx.globalAlpha = life;
+        const r = 6;
+        ctx.beginPath();
+        ctx.moveTo(boxX + r, boxY);
+        ctx.lineTo(boxX + boxWidth - r, boxY);
+        ctx.quadraticCurveTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + r);
+        ctx.lineTo(boxX + boxWidth, boxY + boxHeight - r);
+        ctx.quadraticCurveTo(boxX + boxWidth, boxY + boxHeight, boxX + boxWidth - r, boxY + boxHeight);
+        ctx.lineTo(boxX + r, boxY + boxHeight);
+        ctx.quadraticCurveTo(boxX, boxY + boxHeight, boxX, boxY + boxHeight - r);
+        ctx.lineTo(boxX, boxY + r);
+        ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(15,23,42,0.9)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(148,163,184,0.8)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#e5e7eb';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, nameX, boxY + boxHeight / 2);
+        ctx.restore();
+      }
+
           const showWhoNamesNow = typeof whoPulseUntilNow === 'number' && whoPulseUntilNow > now;
           const whoPulseTotalMs = 4000;
           const whoPulseAgeMs = showWhoNamesNow ? Math.max(0, whoPulseUntilNow - now) : 0;
@@ -309,13 +405,27 @@ export default function WorldCanvas({
         ctx.strokeRect(gx + 0.5, gy + 0.5, gs - 1, gs - 1);
         const toolImg = removeToolImgRef.current;
         if (toolImg && toolImg.complete && toolImg.naturalWidth > 0) {
-          // Center icon within the tile.
           const drawW = gs;
           const drawH = gs;
           const dx = gx;
           const dy = gy;
           ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? Math.min(1, ghostBlock.alpha) : 0.9;
           ctx.drawImage(toolImg, dx, dy, drawW, drawH);
+        }
+        ctx.restore();
+      } else if (ghostBlock?.kind === 'dog') {
+        const gx = Math.round(ghostBlock.x);
+        const gy = Math.round(ghostBlock.y + DOG_DRAW_Y_OFFSET);
+        const gs = DOG_SIZE;
+        const dir = ghostBlock.dir || DEFAULT_DIR;
+        ctx.save();
+        ctx.globalAlpha = typeof ghostBlock.alpha === 'number' ? ghostBlock.alpha : 0.55;
+        const img = sprites.get(`dog/rot/${dir}`) || sprites.get(`dog/rot/${DEFAULT_DIR}`);
+        if (img) {
+          ctx.drawImage(img, gx, gy, gs, gs);
+        } else {
+          ctx.fillStyle = 'rgba(255,255,255,0.25)';
+          ctx.fillRect(gx, gy, gs, gs);
         }
         ctx.restore();
       }
