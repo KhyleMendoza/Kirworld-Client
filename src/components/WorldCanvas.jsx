@@ -349,7 +349,7 @@ export default function WorldCanvas({
         const boxWidth = textW + paddingX * 2;
         const boxHeight = lineHeight + paddingY * 2;
         const nameX = Math.round(Number(d.x) + DOG_SIZE / 2);
-        const baseY = Math.round(Number(d.y) - 12);
+        const baseY = Math.round(Number(d.y) + 2);
         const boxX = Math.round(nameX - boxWidth / 2);
         const boxY = Math.round(baseY - boxHeight);
         ctx.save();
