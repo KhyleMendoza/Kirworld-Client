@@ -1166,6 +1166,7 @@ export default function GameArea({ playerName, onLogout, onSessionRevoked }) {
         onAddToInventory={handleAddBlockToInventory}
         snapSize={snapSize}
         onChangeSnapSize={setSnapSize}
+        inventorySlots={inventorySlots}
       />
       <ChatBox
         messages={messages}

@@ -54,6 +54,7 @@ export default function FindBlocksModal({
   onAddToInventory,
   snapSize,
   onChangeSnapSize,
+  inventorySlots = [],
 }) {
   const [query, setQuery] = useState('');
   const [size] = useState(32);
@@ -344,6 +345,14 @@ export default function FindBlocksModal({
 
   const [showCreate, setShowCreate] = useState(false);
 
+  const isToolAdded = (toolId) =>
+    Array.isArray(inventorySlots) &&
+    inventorySlots.some((item) => item?.type === 'tool' && item.toolId === toolId);
+
+  const isBlockAdded = (blockId) =>
+    Array.isArray(inventorySlots) &&
+    inventorySlots.some((item) => item?.type === 'block' && item.blockId === blockId);
+
   if (!open) return null;
 
   return (
@@ -381,8 +390,8 @@ export default function FindBlocksModal({
                   <div className="find-item-name">Remove Tool</div>
                   <div className="find-item-meta">tool</div>
                 </div>
-                <button type="button" className="find-item-add" onClick={() => onAddToInventory?.(REMOVE_TOOL_ID)}>
-                  Add
+                <button type="button" className="find-item-add" disabled={isToolAdded(REMOVE_TOOL_ID)} onClick={() => onAddToInventory?.(REMOVE_TOOL_ID)}>
+                  {isToolAdded(REMOVE_TOOL_ID) ? 'Added' : 'Add'}
                 </button>
               </div>
               <div className="find-item">
@@ -396,8 +405,8 @@ export default function FindBlocksModal({
                   <div className="find-item-name">Dog</div>
                   <div className="find-item-meta">npc</div>
                 </div>
-                <button type="button" className="find-item-add" onClick={() => onAddToInventory?.(DOG_TOOL_ID)}>
-                  Add
+                <button type="button" className="find-item-add" disabled={isToolAdded(DOG_TOOL_ID)} onClick={() => onAddToInventory?.(DOG_TOOL_ID)}>
+                  {isToolAdded(DOG_TOOL_ID) ? 'Added' : 'Add'}
                 </button>
               </div>
               {filtered.map((b) => (
@@ -416,8 +425,8 @@ export default function FindBlocksModal({
                       {b.category ? b.category : ''}
                     </div>
                   </div>
-                  <button type="button" className="find-item-add" onClick={() => handleAddBlock(b)}>
-                    Add
+                  <button type="button" className="find-item-add" disabled={isBlockAdded(b.id)} onClick={() => handleAddBlock(b)}>
+                    {isBlockAdded(b.id) ? 'Added' : 'Add'}
                   </button>
                 </div>
               ))}
